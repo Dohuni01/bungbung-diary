@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 임시 아이콘: 파란 원 안의 자동차 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF7CC4FF"
+        android:pathData="M54,4a50,50 0,1 1,0 100a50,50 0,1 1,0 -100z" />
+    <path
+        android:fillColor="#FF101418"
+        android:pathData="M30,60 L36,44 Q38,40 43,40 L65,40 Q70,40 72,44 L78,60 L78,72 L30,72 Z" />
+    <path
+        android:fillColor="#FFFFC76B"
+        android:pathData="M36,64a4,4 0,1 1,8 0a4,4 0,1 1,-8 0z M64,64a4,4 0,1 1,8 0a4,4 0,1 1,-8 0z" />
+</vector>
