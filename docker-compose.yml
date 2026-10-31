@@ -1,0 +1,16 @@
+# 로컬 개발용 PostgreSQL. 운영 환경에서 이 계정을 쓰지 마세요.
+services:
+  db:
+    image: postgres:16
+    container_name: bungbung-db
+    environment:
+      POSTGRES_DB: bungbung
+      POSTGRES_USER: bungbung
+      POSTGRES_PASSWORD: bungbung
+    ports:
+      - "5432:5432"
+    volumes:
+      - bungbung-db:/var/lib/postgresql/data
+
+volumes:
+  bungbung-db:

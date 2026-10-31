@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Gradle / build
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.keystore
+*.jks
+
+# Java
+*.class
+*.log
+hs_err_pid*
+
+# Secrets (API 키, 토큰은 절대 커밋하지 않기)
+.env
+.env.*
+!.env.example
+secrets.properties
+application-local.yml
+application-local.properties

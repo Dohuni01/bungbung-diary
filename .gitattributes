@@ -1,0 +1,11 @@
+# Windows와 macOS가 섞인 팀에서 줄바꿈 충돌을 막아요
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+
+*.jar binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.ttf binary
