@@ -44,6 +44,8 @@ import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.ui.AppState
 import com.bungbung.diary.ui.components.StatRow
 import com.bungbung.diary.ui.components.TodoNote
+import com.bungbung.diary.domain.Mood
+import com.bungbung.diary.ui.components.CarCharacter
 import com.bungbung.diary.ui.theme.Ok
 import com.bungbung.diary.ui.theme.Warning
 
@@ -139,8 +141,8 @@ fun OnboardingScreen(state: AppState, onFinish: () -> Unit) {
 }
 
 @Composable
-private fun BigCharacter(emoji: String = "😊") {
-    Text(emoji, fontSize = 120.sp)
+private fun BigCharacter(mood: Mood = Mood.HAPPY) {
+    CarCharacter(mood = mood, width = 200.dp)
 }
 
 @Composable
