@@ -7,6 +7,7 @@ import com.bungbung.diary.data.vehicle.fake.ScenarioHolder
 import com.bungbung.diary.data.vehicle.fake.Scenarios
 import com.bungbung.diary.domain.*
 import java.time.LocalDate
+import java.time.LocalTime
 
 class AppState {
     var nickname    by mutableStateOf("붕붕이")
@@ -37,6 +38,19 @@ class AppState {
     var fuelLow     by mutableStateOf(false)
     var oilDue      by mutableStateOf(false)
 
+    // SDK가 주는 실시간 전체 상태 스냅샷 (문/벨트/창문/라이트 포함). null이면 플랫 필드로 대체.
+    var liveState by mutableStateOf<VehicleState?>(null)
+
+    // 시뮬레이터(디버그 패널)용 — SDK 미연결 시 fallback vehicleState에 반영
+    var simOpenDoor   by mutableStateOf(false)
+    var simSeatBeltOff by mutableStateOf(false)
+    var simWindowOpen by mutableStateOf(false)
+    var simLightOn    by mutableStateOf(false)
+
+    // 일기를 '작성'해서 보여줄 시각 (설정에서 변경)
+    var diaryHour   by mutableStateOf(19)
+    var diaryMinute by mutableStateOf(0)
+
     // 비차량 상태
     var bookedShop  by mutableStateOf<String?>(null)
     var bookedSlot  by mutableStateOf<String?>(null)
@@ -44,6 +58,8 @@ class AppState {
     var voiceAnswer by mutableStateOf<String?>(null)
     var showShopsAfterParking by mutableStateOf(false)
     var showDebugPanel        by mutableStateOf(true)
+    // '지금 일기 미리보기' 강제 표시 (설정 시각 전이라도 일기 확인용)
+    var forceShowDiary by mutableStateOf(false)
 
     val odometerKm: Int get() = today.odometerKm
     val title: String  get() = "$nickname 일기"
@@ -55,6 +71,30 @@ class AppState {
         event.isCelebration -> Mood.CELEBRATE
         else             -> Mood.HAPPY
     }
+
+    /** 붕붕이 실시간 대화 엔진에 넘길 현재 차량 상태 (liveState 우선, 없으면 플랫 필드로 구성) */
+    val vehicleState: VehicleState get() = liveState ?: VehicleState(
+        gear           = gear,
+        speedKmh       = 0,
+        outsideTempC   = outsideTempC,
+        energy         = EnergyState(percent = fuelPercent, isEv = false),
+        hvac           = HvacState(setTempC = 22, heaterOn = today.heaterOn),
+        tires          = TireState(
+            tires.getOrElse(0) { TireStatus("앞 왼쪽", 36, 36) },
+            tires.getOrElse(1) { TireStatus("앞 오른쪽", 36, 36) },
+            tires.getOrElse(2) { TireStatus("뒤 왼쪽", 36, 36) },
+            tires.getOrElse(3) { TireStatus("뒤 오른쪽", 36, 36) },
+        ),
+        safetyWarnings = if (engineLight) listOf(SafetyWarning("ENGINE", "엔진 경고등")) else emptyList(),
+        openDoors      = if (simOpenDoor) listOf("운전석 문") else emptyList(),
+        seatBeltOn     = !simSeatBeltOff,
+        windowOpen     = simWindowOpen,
+        lightOn        = simLightOn,
+    )
+
+    /** 설정한 일기 시각이 지났는지 (지났으면 '오늘의 일기'를 보여줌) */
+    val diaryReady: Boolean get() =
+        forceShowDiary || !LocalTime.now().isBefore(LocalTime.of(diaryHour, diaryMinute))
 
     /** 시나리오를 로드해 차량 상태를 일괄 갱신 */
     fun loadScenario(scenario: CarScenario) {

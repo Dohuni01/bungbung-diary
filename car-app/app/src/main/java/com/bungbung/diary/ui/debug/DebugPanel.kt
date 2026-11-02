@@ -86,6 +86,13 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
         }
 
         HorizontalDivider()
+        Text("붕붕이 상태 (실시간 대화 테스트)", style = MaterialTheme.typography.titleMedium)
+        ToggleRow("운전석 문 열림", state.simOpenDoor)    { state.simOpenDoor = it }
+        ToggleRow("안전벨트 안 맴", state.simSeatBeltOff)  { state.simSeatBeltOff = it }
+        ToggleRow("창문 열림", state.simWindowOpen)        { state.simWindowOpen = it }
+        ToggleRow("라이트 켜둠", state.simLightOn)         { state.simLightOn = it }
+
+        HorizontalDivider()
         OutlinedButton(onClick = { state.resetEvent() }, modifier = Modifier.fillMaxWidth()) {
             Text("이벤트 초기화")
         }
@@ -95,4 +102,12 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
 @Composable
 private fun SimButton(label: String, onClick: () -> Unit) {
     OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }

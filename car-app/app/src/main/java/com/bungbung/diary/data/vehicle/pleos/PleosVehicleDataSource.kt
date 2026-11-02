@@ -5,12 +5,15 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import ai.pleos.playground.vehicle.Vehicle
+import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WheelArea
 import ai.pleos.playground.vehicle.api.model.telltale.TelltaleData
 import ai.pleos.playground.vehicle.api.model.telltale.Telltales
+import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.WheelValue
+import ai.pleos.playground.vehicle.constant.control.LightState
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.telltale.TelltaleState
 import ai.pleos.playground.vehicle.constant.telltale.TelltaleType
@@ -19,13 +22,17 @@ import ai.pleos.playground.vehicle.constant.area.WindowValue
 import ai.pleos.playground.vehicle.constant.control.WiperState
 import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
 import ai.pleos.playground.vehicle.listener.DistanceDrivenListener
+import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.listener.DrivingTimeListener
 import ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener
 import ai.pleos.playground.vehicle.listener.FuelPercentListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
 import ai.pleos.playground.vehicle.listener.HvacPowerStateListener
+import ai.pleos.playground.vehicle.listener.LightStateListener
+import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.TelltaleInfoListener
 import ai.pleos.playground.vehicle.listener.TirePressureListener
+import ai.pleos.playground.vehicle.listener.WindowPositionListener
 import ai.pleos.playground.vehicle.listener.WiperStateListener
 import com.bungbung.diary.data.vehicle.VehicleDataSource
 import com.bungbung.diary.domain.CarInfo
@@ -128,6 +135,48 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
             _state.value = _state.value.copy(wiperOn = state == WiperState.ON)
         }
         override fun onFailed(e: Exception) = Unit
+    }
+
+    // 문 열림 — 문별로 열림 여부를 추적해 열린 문 이름 목록을 만든다.
+    private val openDoorSet = java.util.concurrent.ConcurrentHashMap<DoorValue, Boolean>()
+    private val doorListeners = mutableMapOf<DoorValue, DoorPositionListener>()
+
+    private fun refreshOpenDoors() {
+        val open = DOOR_LABELS.entries
+            .filter { openDoorSet[it.key] == true }
+            .map { it.value }
+        _state.value = _state.value.copy(openDoors = open)
+    }
+
+    // 운전석 안전벨트 (true=매고 있음)
+    private val seatBeltListener = object : SeatBeltBuckledStateListener {
+        override fun onSeatBeltBuckledStateUpdated(buckled: Boolean?) {
+            _state.value = _state.value.copy(seatBeltOn = buckled ?: true)
+        }
+        override fun onFailed(e: Exception) = Unit
+    }
+
+    // 창문 — 앞좌석 좌/우 중 하나라도 열리면 windowOpen=true
+    private val openWindowSet = java.util.concurrent.ConcurrentHashMap<WindowValue, Boolean>()
+    private val windowListeners = mutableMapOf<WindowValue, WindowPositionListener>()
+
+    private fun refreshWindows() {
+        _state.value = _state.value.copy(windowOpen = openWindowSet.values.any { it })
+    }
+
+    // 라이트 — 전조등(로우빔) / 미등 중 하나라도 켜지면 lightOn=true
+    private var lowBeamOn = false
+    private var tailLampOn = false
+    private val lowBeamListener = object : LightStateListener {
+        override fun onLightStateUpdated(s: LightState?) { lowBeamOn = s == LightState.ON; refreshLight() }
+        override fun onFailed(e: Exception) = Unit
+    }
+    private val tailLampListener = object : LightStateListener {
+        override fun onLightStateUpdated(s: LightState?) { tailLampOn = s == LightState.ON; refreshLight() }
+        override fun onFailed(e: Exception) = Unit
+    }
+    private fun refreshLight() {
+        _state.value = _state.value.copy(lightOn = lowBeamOn || tailLampOn)
     }
 
     private val tirePressureListeners = mutableMapOf<WheelValue, TirePressureListener>()
@@ -318,6 +367,34 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         safely("evBattery"){ vehicle.getEvBattery().registerEvBatteryStateOfCharge(evBatteryListener) }
         safely("hvac")     { vehicle.getHVAC().registerHvacPowerState(SeatArea(SeatValue.ROW_1_LEFT), hvacPowerListener) }
         safely("wiper")    { vehicle.getWiper().registerWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
+
+        // 문 (각 문마다)
+        for (doorValue in DOOR_LABELS.keys) {
+            val listener = object : DoorPositionListener {
+                override fun onPositionUpdated(position: Int?) {
+                    openDoorSet[doorValue] = (position ?: 0) > 0
+                    refreshOpenDoors()
+                }
+                override fun onFailed(e: Exception) = Unit
+            }
+            doorListeners[doorValue] = listener
+            safely("door-${doorValue.name}") { vehicle.getDoor().registerDoorPosition(DoorArea(doorValue), listener) }
+        }
+        // 창문 (앞좌석 좌/우)
+        for (windowValue in WINDOW_VALUES) {
+            val listener = object : WindowPositionListener {
+                override fun onWindowPositionUpdated(position: Int?) {
+                    openWindowSet[windowValue] = (position ?: 0) > 0
+                    refreshWindows()
+                }
+                override fun onFailed(e: Exception) = Unit
+            }
+            windowListeners[windowValue] = listener
+            safely("window-${windowValue.name}") { vehicle.getWindow().registerWindowPosition(WindowArea(windowValue), listener) }
+        }
+        safely("seatBelt") { vehicle.getSeat().registerSeatBeltBuckledState(SeatArea(SeatValue.ROW_1_LEFT), seatBeltListener) }
+        safely("lowBeam")  { vehicle.getLight().registerLowBeamLightState(lowBeamListener) }
+        safely("tailLamp") { vehicle.getLight().registerTailLampLightState(tailLampListener) }
     }
 
     @Suppress("DEPRECATION")
@@ -335,6 +412,17 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         safely("fuel-unreg")      { vehicle.getFuel().unregisterFuelPercent(fuelListener) }
         safely("evBattery-unreg") { vehicle.getEvBattery().unregisterEvBatteryStateOfCharge(evBatteryListener) }
         safely("hvac-unreg")      { vehicle.getHVAC().unregisterHvacPowerState(SeatArea(SeatValue.ROW_1_LEFT), hvacPowerListener) }
+        for ((doorValue, listener) in doorListeners) {
+            safely("door-unreg") { vehicle.getDoor().unregisterDoorPosition(DoorArea(doorValue), listener) }
+        }
+        doorListeners.clear()
+        for ((windowValue, listener) in windowListeners) {
+            safely("window-unreg") { vehicle.getWindow().unregisterWindowPosition(WindowArea(windowValue), listener) }
+        }
+        windowListeners.clear()
+        safely("seatBelt-unreg") { vehicle.getSeat().unregisterSeatBeltBuckledState(SeatArea(SeatValue.ROW_1_LEFT), seatBeltListener) }
+        safely("lowBeam-unreg")  { vehicle.getLight().unregisterLowBeamLightState(lowBeamListener) }
+        safely("tailLamp-unreg") { vehicle.getLight().unregisterTailLampLightState(tailLampListener) }
         safely("wiper-unreg")     { vehicle.getWiper().unregisterWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
     }
 
@@ -496,6 +584,19 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
             WheelValue.LEFT_REAR   to "뒤 왼쪽",
             WheelValue.RIGHT_REAR  to "뒤 오른쪽",
         )
+
+        // 문 위치 → 사람이 읽는 이름 (붕붕이 멘트용)
+        private val DOOR_LABELS = linkedMapOf(
+            DoorValue.ROW_1_LEFT  to "운전석 문",
+            DoorValue.ROW_1_RIGHT to "조수석 문",
+            DoorValue.ROW_2_LEFT  to "뒷좌석 왼쪽 문",
+            DoorValue.ROW_2_RIGHT to "뒷좌석 오른쪽 문",
+            DoorValue.HOOD        to "보닛",
+            DoorValue.REAR        to "트렁크",
+        )
+
+        // 창문 — 앞좌석 좌/우만 추적
+        private val WINDOW_VALUES = listOf(WindowValue.ROW_1_LEFT, WindowValue.ROW_1_RIGHT)
 
         // VIN 10번째 문자 → 연식 (I, O, Q, U, Z 제외)
         private val VIN_YEAR_MAP = mapOf(

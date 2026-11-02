@@ -57,14 +57,15 @@ fun BungbungApp(initialNickname: String? = null) {
             try { dataSource.initialize() }
             catch (e: Exception) { Log.w("BungbungApp", "Vehicle SDK init 실패: ${e.message}") }
         }
-        // 차량 상태(기어·온도·연료·타이어) — StateFlow emit 시마다 반영
+        // 차량 상태(기어·온도·연료·타이어·문·벨트 등) — StateFlow emit 시마다 반영
         dsScope.launch {
             dataSource.vehicleStateFlow().collect { vs ->
                 withContext(Dispatchers.Main) {
+                    state.liveState    = vs
                     state.gear         = vs.gear
                     state.outsideTempC = vs.outsideTempC
                     state.fuelPercent  = vs.energy.percent
-                    state.fuelLow      = vs.energy.percent <= 15
+                    state.fuelLow      = vs.energy.percent in 1..15
                     state.tires        = vs.tires.asList()
                     state.tireLow      = vs.tires.anyLow()
                     state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
@@ -92,6 +93,8 @@ fun BungbungApp(initialNickname: String? = null) {
             state.nickname     = profile.nickname
             state.tone         = runCatching { Tone.valueOf(profile.tone) }.getOrDefault(Tone.FRIEND)
             state.deliveryDate = profile.deliveryDateIso
+            state.diaryHour    = profile.diaryHour
+            state.diaryMinute  = profile.diaryMinute
             startDest = Routes.MAIN
         } else {
             if (!initialNickname.isNullOrBlank()) state.nickname = initialNickname.trim().take(8)

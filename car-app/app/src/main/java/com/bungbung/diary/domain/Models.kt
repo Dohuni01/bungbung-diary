@@ -106,6 +106,11 @@ data class VehicleState(
     // Pleos 트립 누적값 (SDK가 직접 제공) — null이면 집계기 자체 계산 사용
     val tripDistanceKm: Float? = null,
     val tripDriveMin: Int? = null,
+    // 붕붕이가 실시간으로 말 거는 상태들
+    val openDoors: List<String> = emptyList(),  // 열린 문 이름 (운전석/조수석/뒷좌석/보닛/트렁크)
+    val seatBeltOn: Boolean = true,              // 운전석 안전벨트 (true=매고 있음)
+    val windowOpen: Boolean = false,             // 창문 하나라도 열림
+    val lightOn: Boolean = false,                // 전조등/미등 켜져 있음
 )
 
 data class CarScenario(
