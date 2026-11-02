@@ -50,6 +50,10 @@
                 <!-- Pleos Connect(AAOS) 차량 앱 목록에 표시 -->
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
             </intent-filter>
+            <!-- 주행 중 앱 차단(Unavailable while driving) 해제 -->
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
         </activity>
     </application>
 </manifest>
