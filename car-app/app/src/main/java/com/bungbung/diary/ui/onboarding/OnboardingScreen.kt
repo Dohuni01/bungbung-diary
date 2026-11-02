@@ -23,12 +23,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.bungbung.diary.domain.CarInfo
+import com.bungbung.diary.domain.DailySummary
+import com.bungbung.diary.domain.VehicleState
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -227,33 +232,43 @@ private fun ConsentStep(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 
 @Composable
 private fun HealthCheckStep() {
-    // Fake 단계: ScenarioHolder.current 고정값 → Phase 2에서 StateFlow로 교체 예정
     val ds = remember { FakeVehicleDataSource() }
-    val vehicleState = ds.getVehicleState()
-    val summary = ds.getDailySummary()
-    val carInfo = ds.getCarInfo()
+    var vehicleState by remember { mutableStateOf<VehicleState?>(null) }
+    var summary     by remember { mutableStateOf<DailySummary?>(null) }
+    var carInfo     by remember { mutableStateOf<CarInfo?>(null) }
+
+    // Phase 2에서 ds → PleosVehicleDataSource로 교체하면 여기서 실제 SDK 데이터가 흐름
+    LaunchedEffect(Unit) {
+        vehicleState = ds.vehicleStateFlow().first()
+        summary      = ds.getDailySummary()
+        carInfo      = ds.getCarInfo()
+    }
+
+    val vs = vehicleState ?: return
+    val sm = summary      ?: return
+    val ci = carInfo      ?: return
 
     val items = buildList {
-        add(HealthCheckItem("차 정보", "${carInfo.modelYear}년식 ${carInfo.manufacturer}", HealthCheckItem.Level.OK))
-        add(HealthCheckItem("누적 주행거리", "${summary.odometerKm} km", HealthCheckItem.Level.OK))
+        add(HealthCheckItem("차 정보", "${ci.modelYear}년식 ${ci.manufacturer}", HealthCheckItem.Level.OK))
+        add(HealthCheckItem("누적 주행거리", "${sm.odometerKm} km", HealthCheckItem.Level.OK))
 
-        val lowTire = vehicleState.tires.asList().firstOrNull { it.isLow }
+        val lowTire = vs.tires.asList().firstOrNull { it.isLow }
         if (lowTire != null) {
             add(HealthCheckItem("타이어", "${lowTire.position} ${lowTire.psi} psi (권장 ${lowTire.recommendedPsi}) · 주의", HealthCheckItem.Level.CAUTION))
         } else {
             add(HealthCheckItem("타이어", "4바퀴 정상", HealthCheckItem.Level.OK))
         }
 
-        if (vehicleState.safetyWarnings.isEmpty()) {
+        if (vs.safetyWarnings.isEmpty()) {
             add(HealthCheckItem("경고등", "켜진 경고 없음", HealthCheckItem.Level.OK))
         } else {
-            add(HealthCheckItem("경고등", vehicleState.safetyWarnings.joinToString { it.name }, HealthCheckItem.Level.CAUTION))
+            add(HealthCheckItem("경고등", vs.safetyWarnings.joinToString { it.name }, HealthCheckItem.Level.CAUTION))
         }
 
         add(HealthCheckItem(
-            if (vehicleState.energy.isEv) "배터리" else "연료",
-            "${vehicleState.energy.percent}%",
-            if (vehicleState.energy.percent <= 15) HealthCheckItem.Level.CAUTION else HealthCheckItem.Level.OK,
+            if (vs.energy.isEv) "배터리" else "연료",
+            "${vs.energy.percent}%",
+            if (vs.energy.percent <= 15) HealthCheckItem.Level.CAUTION else HealthCheckItem.Level.OK,
         ))
     }
 
