@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bungbung.diary.data.fake.FakeData
+import com.bungbung.diary.data.text.TemplateTextGenerator
+import com.bungbung.diary.domain.toJson
 import com.bungbung.diary.domain.DailySummary
 import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.domain.WarningInfo
@@ -108,7 +110,7 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
             Header(state)
             MessageBubble(state = state, onOpenBooking = onOpenBooking, onOpenStations = onOpenStations)
             WarningStrip(state = state, onOpenBooking = onOpenBooking, onOpenStations = onOpenStations)
-            DataSourceToggle()
+            DataSourceToggle(state)
         }
     }
 }
@@ -184,7 +186,19 @@ private fun MessageBubble(state: AppState, onOpenBooking: () -> Unit, onOpenStat
     val warning = FakeData.warningInfo(event)
 
     SpeechBubble(modifier = Modifier.fillMaxWidth()) {
-        BubbleText(FakeData.message(event, state.tone, state.nickname, state.bookedShop, state.bookedSlot, state.waypoint))
+        BubbleText(
+            TemplateTextGenerator.generate(
+                event      = event,
+                tone       = state.tone,
+                nickname   = state.nickname,
+                summary    = state.today,
+                tireData   = state.tires.find { it.isLow },
+                warning    = if (state.engineLight) com.bungbung.diary.domain.SafetyWarning("ENGINE", "엔진 경고등") else null,
+                bookedShop = state.bookedShop,
+                bookedSlot = state.bookedSlot,
+                waypoint   = state.waypoint,
+            )
+        )
 
         if (warning != null) {
             WarningBoxes(warning)
@@ -269,7 +283,7 @@ private fun WarningStrip(state: AppState, onOpenBooking: () -> Unit, onOpenStati
 }
 
 @Composable
-private fun DataSourceToggle() {
+private fun DataSourceToggle(state: AppState) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column {
         TextButton(onClick = { expanded = !expanded }) {
@@ -277,7 +291,7 @@ private fun DataSourceToggle() {
         }
         if (expanded) {
             InfoCard(title = "DailySummary (데모 값)", modifier = Modifier.fillMaxWidth()) {
-                Text(FakeData.todayJson, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
+                Text(state.today.toJson(), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -294,7 +308,11 @@ private fun DrivingView(state: AppState) {
             CarCharacter(mood = state.mood, width = 240.dp)
             Text("주행 중", style = MaterialTheme.typography.headlineMedium)
             Text(
-                FakeData.drivingNotice(state.tone),
+                when (state.tone) {
+                    com.bungbung.diary.domain.Tone.FRIEND -> "운전 중엔 말로만 할게. 주차하면 오늘 얘기 들려줄게!"
+                    com.bungbung.diary.domain.Tone.BUTLER -> "주행 중에는 음성으로만 안내드리겠습니다. 주차 후 오늘의 일기를 들려드리겠습니다."
+                    com.bungbung.diary.domain.Tone.BLUNT  -> "운전 중. 말로만 함. 일기는 주차 후."
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -325,7 +343,12 @@ private fun VoicePromptCard(state: AppState) {
         val answer = state.voiceAnswer
         if (answer == null) {
             Text(
-                "🔊 " + FakeData.voicePrompt(state.event, state.tone),
+                "🔊 " + TemplateTextGenerator.generate(
+                    event    = state.event,
+                    tone     = state.tone,
+                    nickname = state.nickname,
+                    summary  = state.today,
+                ).take(60) + "…",
                 style = MaterialTheme.typography.titleLarge,
                 color = Warning,
                 textAlign = TextAlign.Center,
