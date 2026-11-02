@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bungbung.diary.data.fake.FakeData
+import com.bungbung.diary.domain.DailySummary
 import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.domain.WarningInfo
 import com.bungbung.diary.ui.AppState
@@ -94,7 +95,7 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
                 modifier = Modifier.fillMaxWidth(),
                 characterWidth = 180.dp,
             )
-            TodayTiles()
+            TodayTiles(state.today)
         }
 
         // 오른쪽: 말풍선
@@ -113,8 +114,8 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
 }
 
 @Composable
-private fun TodayTiles() {
-    val t = FakeData.today
+private fun TodayTiles(summary: DailySummary) {
+    val t = summary
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile("달린 거리", "${t.distanceKm}", "km", Modifier.weight(1f))
@@ -128,8 +129,8 @@ private fun TodayTiles() {
 }
 
 /** "2026-10-31" → "10월 31일 금요일" */
-private fun todayLabel(): String {
-    val raw = FakeData.today.date
+private fun todayLabel(date: String): String {
+    val raw = date
     return runCatching { LocalDate.parse(raw).format(DateTimeFormatter.ofPattern("M월 d일 EEEE", Locale.KOREAN)) }
         .getOrDefault(raw)
 }
@@ -143,7 +144,7 @@ private fun Header(state: AppState) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(state.event.title, style = MaterialTheme.typography.headlineMedium)
-            Text(todayLabel(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(todayLabel(state.today.date), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ToneSelector(current = state.tone, onSelect = { state.tone = it })
     }

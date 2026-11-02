@@ -25,7 +25,7 @@ import com.bungbung.diary.ui.theme.Warning
 /** 차 건강 탭: 바퀴 4개 공기압, 엔진 경고등, 정비 예약 상태 */
 @Composable
 fun HealthScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -> Unit) {
-    val tires = FakeData.tires(state.tireLow)
+    val tires = state.tires
 
     Column(
         modifier = Modifier
@@ -61,7 +61,7 @@ fun HealthScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () 
                 StatRow("연료", "${FakeData.FUEL_PERCENT_LOW}% · 약 ${FakeData.FUEL_RANGE_KM_LOW}km", valueColor = Warning)
                 OutlinedButton(onClick = onOpenStations) { Text("가까운 주유소 보기") }
             } else {
-                StatRow("연료", "62%", valueColor = Ok)
+                StatRow("연료", "${state.fuelPercent}%", valueColor = Ok)
             }
             if (state.oilDue) {
                 StatRow("엔진오일", "교체 시기", valueColor = Warning)

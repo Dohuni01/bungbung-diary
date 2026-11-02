@@ -61,6 +61,7 @@ fun MainScreen(
     onOpenSettings: () -> Unit,
     onOpenBooking: () -> Unit,
     onOpenStations: () -> Unit,
+    onOpenProbe: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -96,6 +97,7 @@ fun MainScreen(
         if (state.showDebugPanel) {
             DebugPanel(
                 state = state,
+                onOpenProbe = onOpenProbe,
                 modifier = Modifier
                     .width(300.dp)
                     .fillMaxHeight(),
@@ -121,7 +123,7 @@ private fun StatusBar(state: AppState, onOpenSettings: () -> Unit) {
         Text(state.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Text(time, style = MaterialTheme.typography.titleMedium)
-        Text("외기 11°C", style = MaterialTheme.typography.titleMedium)
+        Text("외기 ${state.outsideTempC}°C", style = MaterialTheme.typography.titleMedium)
         GearIndicator(current = state.gear)
         Text("$km km", style = MaterialTheme.typography.titleMedium)
         IconButton(onClick = onOpenSettings) {
