@@ -72,3 +72,55 @@ data class TireStatus(val position: String, val psi: Int, val recommendedPsi: In
 data class HealthCheckItem(val name: String, val result: String, val level: Level) {
     enum class Level { OK, CAUTION, UNKNOWN }
 }
+
+// ---- 차량 상태 (시나리오 시스템용) ----
+
+data class EnergyState(val percent: Int, val isEv: Boolean)
+
+data class HvacState(val setTempC: Int, val heaterOn: Boolean)
+
+data class TireState(
+    val frontLeft: TireStatus,
+    val frontRight: TireStatus,
+    val rearLeft: TireStatus,
+    val rearRight: TireStatus,
+) {
+    fun asList() = listOf(frontLeft, frontRight, rearLeft, rearRight)
+    fun anyLow() = asList().any { it.isLow }
+}
+
+data class SafetyWarning(val code: String, val name: String)
+
+data class CarInfo(val manufacturer: String, val modelYear: Int)
+
+data class VehicleState(
+    val gear: Gear,
+    val speedKmh: Int,
+    val outsideTempC: Int,
+    val energy: EnergyState,
+    val hvac: HvacState,
+    val tires: TireState,
+    val safetyWarnings: List<SafetyWarning>,
+)
+
+data class CarScenario(
+    val name: String,
+    val currentState: VehicleState,
+    val todaySummary: DailySummary,
+    val carInfo: CarInfo,
+    val defaultEvent: CarEvent = CarEvent.DIARY,
+)
+
+fun DailySummary.toJson(): String = """
+    {
+      "date": "$date",
+      "distanceKm": $distanceKm,
+      "driveMin": $driveMin,
+      "trips": $trips,
+      "wiperMin": $wiperMin,
+      "hardBrakes": $hardBrakes,
+      "outsideTempC": $outsideTempC,
+      "heaterOn": $heaterOn,
+      "odometerKm": $odometerKm
+    }
+""".trimIndent()
