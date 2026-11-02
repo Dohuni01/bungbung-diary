@@ -149,18 +149,38 @@ private fun Exception.unwrap(): String {
     return cause.message ?: javaClass.simpleName
 }
 
-// Pleos SDK — Pleos 에뮬레이터 없이는 확인 불가능
-private val PLEOS_ITEMS = listOf(
-    ProbeItem("Vehicle SDK (Odometer·Tire·Wiper·Safety 등)", "ai.pleos.playground:Vehicle",
-        ProbeStatus.SKIP, note = "Pleos 에뮬레이터 없음 → FakeVehicleDataSource로 대체"),
-    ProbeItem("Pleos TTS SDK (HYBRID / ON_DEVICE)", "ai.pleos.playground.tts.TextToSpeech",
-        ProbeStatus.SKIP, note = "Pleos 에뮬레이터 없음 → Android 시스템 TTS로 대체"),
-    ProbeItem("Pleos LLM SDK", "Gleo AI SDK",
-        ProbeStatus.SKIP, note = "문서 URL이 서비스 상태 페이지로 리다이렉트 → Phase 4에서 서버 프록시 경로로"),
-    ProbeItem("SpeechToText SDK", "ai.pleos.playground.stt",
-        ProbeStatus.SKIP, note = "Pleos 에뮬레이터 없음 → '말로 이름 짓기' 버튼 제외"),
+private fun probePleosSdk(label: String, className: String, note: String): ProbeItem {
+    return try {
+        Class.forName(className)
+        ProbeItem(label, className, ProbeStatus.OK, note = "클래스 로드 성공")
+    } catch (_: ClassNotFoundException) {
+        ProbeItem(label, className, ProbeStatus.SKIP, note = note)
+    }
+}
+
+private fun probePleosVehicleSdk() = probePleosSdk(
+    "Pleos Vehicle SDK",
+    "ai.pleos.playground.vehicle.Vehicle",
+    "libs.pleos.vehicle 의존성 또는 Maven URL 확인 필요",
+)
+
+private fun probePleosTtsSdk() = probePleosSdk(
+    "Pleos TTS SDK",
+    "ai.pleos.playground.tts.TextToSpeech",
+    "libs.pleos.tts 의존성 또는 Maven URL 확인 필요",
+)
+
+private fun probePleosSttSdk() = probePleosSdk(
+    "Pleos STT SDK",
+    "ai.pleos.playground.stt.SpeechToText",
+    "libs.pleos.stt 의존성 또는 Maven URL 확인 필요",
+)
+
+private val PLEOS_STATIC_ITEMS = listOf(
+    ProbeItem("Pleos LLM SDK", "ai.pleos.playground.llm.LLM",
+        ProbeStatus.SKIP, note = "Gradle 좌표 미공개 (API Reference만 존재) — 에뮬레이터 확인 필요"),
     ProbeItem("CarUxRestrictionsManager", "AAOS CarUxRestrictionsManager",
-        ProbeStatus.SKIP, note = "Automotive AVD에서 DRIVING_POLICY 확인 필요 (Phase 2)"),
+        ProbeStatus.SKIP, note = "Phase 2에서 DRIVING_POLICY 콜백 등록 예정"),
 )
 
 // ── 화면 ──────────────────────────────────────────────────────────────
@@ -172,10 +192,16 @@ fun ProbeScreen(onBack: () -> Unit) {
     var aaosItems by remember { mutableStateOf<List<ProbeItem>?>(null) }
     var ttsItem by remember { mutableStateOf<ProbeItem?>(null) }
     var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
+    var pleosSdkItems by remember { mutableStateOf<List<ProbeItem>?>(null) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             aaosItems = probeAaos(context)
+            pleosSdkItems = listOf(
+                probePleosVehicleSdk(),
+                probePleosTtsSdk(),
+                probePleosSttSdk(),
+            )
         }
     }
 
@@ -262,8 +288,19 @@ fun ProbeScreen(onBack: () -> Unit) {
         }
 
         // ── Pleos SDK ──
-        item { SectionHeader("Pleos SDK (Pleos 에뮬레이터 없음 → 전부 확인 불가)") }
-        items(PLEOS_ITEMS) { ProbeRow(it) }
+        item { SectionHeader("Pleos SDK") }
+        if (pleosSdkItems == null) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+                    CircularProgressIndicator(Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("조사 중...", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else {
+            items(pleosSdkItems!!) { ProbeRow(it) }
+        }
+        items(PLEOS_STATIC_ITEMS) { ProbeRow(it) }
     }
 }
 
