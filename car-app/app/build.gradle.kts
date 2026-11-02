@@ -55,7 +55,13 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.ui.tooling)
 
-    // TODO(Phase 0~): Pleos SDK (예: ai.pleos.playground:Vehicle) 는 저장소 등록 후 추가
+    // Pleos SDK
+    // https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/Vehicle/intro
+    implementation(libs.pleos.vehicle)
+    // https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/SpeechToText/intro
+    implementation(libs.pleos.stt)
+    // https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/TextToSpeech/intro
+    implementation(libs.pleos.tts)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

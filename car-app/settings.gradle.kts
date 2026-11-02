@@ -16,8 +16,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // TODO(Phase 0): Pleos SDK 신청 후 받은 Pleos Maven 저장소 주소를 여기에 추가
-        // maven { url = uri("<Pleos Maven URL>") }
+        // Pleos Maven 저장소
+        // https://document.pleos.ai/en/docs/pleos-only/getting-started
+        maven { url = uri("https://nexus-playground.pleos.ai/repository/maven-releases/") }
     }
 }
 
