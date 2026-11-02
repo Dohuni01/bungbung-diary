@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.bungbung.diary.data.vehicle.fake.ScenarioHolder
 import com.bungbung.diary.data.vehicle.fake.Scenarios
 import com.bungbung.diary.domain.*
+import java.time.LocalDate
 
 class AppState {
     var nickname    by mutableStateOf("붕붕이")
@@ -13,9 +14,21 @@ class AppState {
     var deliveryDate by mutableStateOf<String?>(null)
     var event       by mutableStateOf(CarEvent.DIARY)
 
-    // 차량 상태 (ScenarioHolder에서 로드, 기본값 = DiaryDay)
-    var gear        by mutableStateOf(Scenarios.DiaryDay.currentState.gear)
-    var today       by mutableStateOf(Scenarios.DiaryDay.todaySummary)
+    // 차량 상태 — 실제 SDK에서 1초마다 덮어씀. 초기값은 0 (첫 주행 기준)
+    var gear        by mutableStateOf(Gear.P)
+    var today       by mutableStateOf(
+        DailySummary(
+            date         = LocalDate.now().toString(),
+            distanceKm   = 0.0,
+            driveMin     = 0,
+            trips        = 0,
+            wiperMin     = 0,
+            hardBrakes   = 0,
+            outsideTempC = 0,
+            heaterOn     = false,
+            odometerKm   = 0,
+        )
+    )
     var tires       by mutableStateOf(Scenarios.DiaryDay.currentState.tires.asList())
     var outsideTempC by mutableStateOf(Scenarios.DiaryDay.currentState.outsideTempC)
     var fuelPercent by mutableStateOf(Scenarios.DiaryDay.currentState.energy.percent)
@@ -99,11 +112,13 @@ class AppState {
         event = CarEvent.BOOKED
     }
 
-    fun resetDemo() {
-        loadScenario(Scenarios.DiaryDay)
-        oilDue       = false
-        nickname     = "붕붕이"
-        tone         = Tone.FRIEND
-        deliveryDate = null
+    /** 이벤트·예약·경유지 상태만 초기화 — 차량 데이터(gear/today/tires)는 SDK가 덮어쓰므로 건드리지 않음 */
+    fun resetEvent() {
+        event        = CarEvent.DIARY
+        voiceAnswer  = null
+        bookedShop   = null
+        bookedSlot   = null
+        waypoint     = null
+        showShopsAfterParking = false
     }
 }

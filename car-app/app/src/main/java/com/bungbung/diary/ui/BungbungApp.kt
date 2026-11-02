@@ -55,16 +55,26 @@ fun BungbungApp(initialNickname: String? = null) {
         dsScope.launch {
             try {
                 dataSource.initialize()
-                dataSource.vehicleStateFlow().collect { vs ->
-                    withContext(Dispatchers.Main) {
-                        state.gear         = vs.gear
-                        state.outsideTempC = vs.outsideTempC
-                        state.fuelPercent  = vs.energy.percent
-                        state.fuelLow      = vs.energy.percent <= 15
-                        state.tires        = vs.tires.asList()
-                        state.tireLow      = vs.tires.anyLow()
-                        state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
-                        state.today        = dataSource.getDailySummary()
+                // 차량 상태(기어·온도·연료·타이어) — StateFlow emit 시마다 반영
+                launch {
+                    dataSource.vehicleStateFlow().collect { vs ->
+                        withContext(Dispatchers.Main) {
+                            state.gear        = vs.gear
+                            state.outsideTempC = vs.outsideTempC
+                            state.fuelPercent  = vs.energy.percent
+                            state.fuelLow      = vs.energy.percent <= 15
+                            state.tires        = vs.tires.asList()
+                            state.tireLow      = vs.tires.anyLow()
+                            state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
+                        }
+                    }
+                }
+                // DailySummary(와이퍼·급제동 등) — 1초 타이머로 강제 폴링
+                launch {
+                    while (true) {
+                        kotlinx.coroutines.delay(1_000L)
+                        val summary = dataSource.getDailySummary()
+                        withContext(Dispatchers.Main) { state.today = summary }
                     }
                 }
             } catch (e: Exception) {

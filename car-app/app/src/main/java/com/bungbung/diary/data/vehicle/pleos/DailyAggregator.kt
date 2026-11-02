@@ -4,7 +4,8 @@ import com.bungbung.diary.domain.DailySummary
 import com.bungbung.diary.domain.Gear
 import com.bungbung.diary.domain.VehicleState
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -39,9 +40,12 @@ class DailyAggregator {
     private var prevState: VehicleState? = null
     private var prevTickMs = 0L
 
-    fun start(scope: CoroutineScope, stateFlow: Flow<VehicleState>) {
+    fun start(scope: CoroutineScope, stateFlow: StateFlow<VehicleState>) {
         scope.launch {
-            stateFlow.collect { state -> tick(state) }
+            while (true) {
+                delay(TICK_MS)
+                tick(stateFlow.value)
+            }
         }
     }
 
@@ -83,6 +87,10 @@ class DailyAggregator {
         latestHeaterOn     = state.hvac.heaterOn
         prevState          = state
         prevTickMs         = now
+    }
+
+    companion object {
+        private const val TICK_MS = 1_000L
     }
 
     fun getDailySummary(): DailySummary = DailySummary(

@@ -30,10 +30,6 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
         Text("개발·시연용", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        OutlinedButton(onClick = onOpenProbe, modifier = Modifier.fillMaxWidth()) {
-            Text("Phase 0  API 조사 화면")
-        }
-
         HorizontalDivider()
         Text("시나리오 선택", style = MaterialTheme.typography.titleMedium)
 
@@ -90,8 +86,8 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
         }
 
         HorizontalDivider()
-        OutlinedButton(onClick = { state.resetDemo() }, modifier = Modifier.fillMaxWidth()) {
-            Text("처음 상태로")
+        OutlinedButton(onClick = { state.resetEvent() }, modifier = Modifier.fillMaxWidth()) {
+            Text("이벤트 초기화")
         }
     }
 }
