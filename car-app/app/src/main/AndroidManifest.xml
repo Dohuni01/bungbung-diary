@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!--
-        Android Automotive 앱 표시. 지금은 일반 폰/태블릿 에뮬레이터에서도 화면을 볼 수 있게
-        required="false"로 두었어요. Pleos 에뮬레이터로 옮길 때 "true"로 바꾸세요.
-    -->
+    <!-- Pleos Connect Emulator(AAOS 기반) 전용. 폰/태블릿 에뮬레이터에서 실행하려면 "false"로 변경. -->
     <uses-feature
         android:name="android.hardware.type.automotive"
-        android:required="false" />
+        android:required="true" />
 
-    <!-- AAOS 표준 CarPropertyManager 권한 (Phase 0 조사용, Phase 2에서 필요한 것만 남길 것) -->
+    <!-- AAOS 표준 CarPropertyManager 권한 -->
     <uses-permission android:name="android.car.permission.CAR_MILEAGE" />
     <uses-permission android:name="android.car.permission.CAR_TIRES" />
     <uses-permission android:name="android.car.permission.READ_WINDSHIELD_WIPERS" />
@@ -21,6 +18,19 @@
     <uses-permission android:name="android.car.permission.CAR_ENERGY" />
     <uses-permission android:name="android.car.permission.CAR_DRIVING_STATE" />
 
+    <!-- Pleos Vehicle SDK 권한 -->
+    <uses-permission android:name="pleos.car.permission.CAR_INFO" />
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_SPEED" />
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />
+    <uses-permission android:name="pleos.car.permission.CAR_TIRES" />
+    <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <!-- Pleos STT / TTS SDK 권한 -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+
     <application
         android:name=".BungbungApplication"
         android:allowBackup="false"
@@ -31,10 +41,14 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|navigation|uiMode"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <!-- 일반 런처용 -->
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- Pleos Connect(AAOS) 차량 앱 목록에 표시 -->
+                <category android:name="android.intent.category.CAR_LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
