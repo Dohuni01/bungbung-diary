@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bungbung.diary.data.fake.FakeData
+import com.bungbung.diary.data.vehicle.fake.FakeVehicleDataSource
 import com.bungbung.diary.domain.CarEvent
 import com.bungbung.diary.domain.HealthCheckItem
 import com.bungbung.diary.domain.Tone
@@ -226,35 +227,34 @@ private fun ConsentStep(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 
 @Composable
 private fun HealthCheckStep() {
-    val ds = remember { com.bungbung.diary.data.vehicle.fake.FakeVehicleDataSource() }
-    val vehicleState = remember { ds.getVehicleState() }
-    val summary = remember { ds.getDailySummary() }
-    val carInfo = remember { ds.getCarInfo() }
+    // Fake 단계: ScenarioHolder.current 고정값 → Phase 2에서 StateFlow로 교체 예정
+    val ds = remember { FakeVehicleDataSource() }
+    val vehicleState = ds.getVehicleState()
+    val summary = ds.getDailySummary()
+    val carInfo = ds.getCarInfo()
 
-    val items = remember(vehicleState) {
-        buildList {
-            add(HealthCheckItem("차 정보", "${carInfo.modelYear}년식 ${carInfo.manufacturer}", HealthCheckItem.Level.OK))
-            add(HealthCheckItem("누적 주행거리", "${summary.odometerKm} km", HealthCheckItem.Level.OK))
+    val items = buildList {
+        add(HealthCheckItem("차 정보", "${carInfo.modelYear}년식 ${carInfo.manufacturer}", HealthCheckItem.Level.OK))
+        add(HealthCheckItem("누적 주행거리", "${summary.odometerKm} km", HealthCheckItem.Level.OK))
 
-            val lowTire = vehicleState.tires.asList().firstOrNull { it.isLow }
-            if (lowTire != null) {
-                add(HealthCheckItem("타이어", "${lowTire.position} ${lowTire.psi} psi (권장 ${lowTire.recommendedPsi}) · 주의", HealthCheckItem.Level.CAUTION))
-            } else {
-                add(HealthCheckItem("타이어", "4바퀴 정상", HealthCheckItem.Level.OK))
-            }
-
-            if (vehicleState.safetyWarnings.isEmpty()) {
-                add(HealthCheckItem("경고등", "켜진 경고 없음", HealthCheckItem.Level.OK))
-            } else {
-                add(HealthCheckItem("경고등", vehicleState.safetyWarnings.joinToString { it.name }, HealthCheckItem.Level.CAUTION))
-            }
-
-            add(HealthCheckItem(
-                if (vehicleState.energy.isEv) "배터리" else "연료",
-                "${vehicleState.energy.percent}%",
-                if (vehicleState.energy.percent <= 15) HealthCheckItem.Level.CAUTION else HealthCheckItem.Level.OK,
-            ))
+        val lowTire = vehicleState.tires.asList().firstOrNull { it.isLow }
+        if (lowTire != null) {
+            add(HealthCheckItem("타이어", "${lowTire.position} ${lowTire.psi} psi (권장 ${lowTire.recommendedPsi}) · 주의", HealthCheckItem.Level.CAUTION))
+        } else {
+            add(HealthCheckItem("타이어", "4바퀴 정상", HealthCheckItem.Level.OK))
         }
+
+        if (vehicleState.safetyWarnings.isEmpty()) {
+            add(HealthCheckItem("경고등", "켜진 경고 없음", HealthCheckItem.Level.OK))
+        } else {
+            add(HealthCheckItem("경고등", vehicleState.safetyWarnings.joinToString { it.name }, HealthCheckItem.Level.CAUTION))
+        }
+
+        add(HealthCheckItem(
+            if (vehicleState.energy.isEv) "배터리" else "연료",
+            "${vehicleState.energy.percent}%",
+            if (vehicleState.energy.percent <= 15) HealthCheckItem.Level.CAUTION else HealthCheckItem.Level.OK,
+        ))
     }
 
     Speech("내 몸 상태를 살펴볼게")
