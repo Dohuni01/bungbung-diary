@@ -102,6 +102,10 @@ data class VehicleState(
     val tires: TireState,
     val safetyWarnings: List<SafetyWarning>,
     val wiperOn: Boolean = false,
+    val brakePressed: Boolean = false,
+    // Pleos 트립 누적값 (SDK가 직접 제공) — null이면 집계기 자체 계산 사용
+    val tripDistanceKm: Float? = null,
+    val tripDriveMin: Int? = null,
 )
 
 data class CarScenario(

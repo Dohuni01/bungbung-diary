@@ -11,25 +11,28 @@ import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
- * 실시간 VehicleState 스트림을 구독해 오늘치 운행 통계를 누적한다.
+ * 실시간 VehicleState 스트림을 1초마다 샘플링해 오늘치 운행 통계를 누적한다.
  *
- * - 기어 D → distanceKm 적분 (speedKmh * elapsedSec / 3600)
- * - 기어 D → driveMin 누적
- * - N/P/R → D 전환 = 트립 +1
- * - speedKmh가 2초 내에 20 km/h 이상 감소 = 급제동 +1
+ * - distanceKm / driveMin → Pleos 트립 리스너 값(state.tripDistanceKm/tripDriveMin)을 우선 사용.
+ *                           트립 값이 없으면(null) 기어 D 구간에서 자체 누적(fallback).
+ * - N/P/R → D 전환        = 트립 +1
+ * - brakePressed false→true && 기어 D = 급제동 +1
  * - wiperOn = true 인 구간 → wiperMin 누적
  *
- * 자정이 지나면 오늘 날짜가 바뀌어도 누적값은 유지된다.
  * 실제 초기화는 PleosVehicleDataSource.initialize() 호출 기준 세션 단위.
  */
 class DailyAggregator {
 
-    // 누적 값
+    // 누적 값 (fallback 계산용)
     @Volatile private var distanceKm = 0.0
     @Volatile private var driveMs    = 0L
     @Volatile private var trips      = 0
     @Volatile private var wiperMs    = 0L
     @Volatile private var hardBrakes = 0
+
+    // Pleos 트립 리스너가 직접 준 값 (우선 사용, null이면 fallback)
+    @Volatile private var tripDistanceKm: Float? = null
+    @Volatile private var tripDriveMin: Int?     = null
 
     // 최신 상태 스냅샷 (getDailySummary에서 참조)
     @Volatile private var latestOutsideTempC = 0
@@ -58,20 +61,22 @@ class DailyAggregator {
         val now = System.currentTimeMillis()
         val prev = prevState
 
-        if (prev != null && prevTickMs > 0) {
-            val elapsedMs  = now - prevTickMs
-            val elapsedSec = elapsedMs / 1000.0
+        // Pleos 트립 값은 그대로 보관 (getDailySummary에서 우선 사용)
+        tripDistanceKm = state.tripDistanceKm
+        tripDriveMin   = state.tripDriveMin
 
-            // 주행 중 거리·시간 누적
+        if (prev != null && prevTickMs > 0) {
+            val elapsedMs = now - prevTickMs
+
+            // fallback 거리·시간 (트립 값이 없을 때만 의미 있음)
             if (prev.gear == Gear.D) {
-                distanceKm += prev.speedKmh * elapsedSec / 3600.0
+                distanceKm += prev.speedKmh * elapsedMs / 3600_000.0
                 driveMs    += elapsedMs
             }
 
-            // 급제동 감지: 2초 이내에 20 km/h 초과 감속
-            if (elapsedSec < 2.0 && prev.gear == Gear.D) {
-                val drop = prev.speedKmh - state.speedKmh
-                if (drop > 20) hardBrakes++
+            // 급제동: 브레이크 페달 눌림 전환(false→true) && 주행 중
+            if (!prev.brakePressed && state.brakePressed && state.gear == Gear.D) {
+                hardBrakes++
             }
 
             // 와이퍼 시간 누적
@@ -93,15 +98,20 @@ class DailyAggregator {
         private const val TICK_MS = 1_000L
     }
 
-    fun getDailySummary(): DailySummary = DailySummary(
-        date         = LocalDate.now().toString(),
-        distanceKm   = (distanceKm * 10).roundToInt() / 10.0,
-        driveMin     = (driveMs / 60_000L).toInt(),
-        trips        = trips.coerceAtLeast(if (driveMs > 0) 1 else 0),
-        wiperMin     = (wiperMs / 60_000L).toInt(),
-        hardBrakes   = hardBrakes,
-        outsideTempC = latestOutsideTempC,
-        heaterOn     = latestHeaterOn,
-        odometerKm   = latestOdometerKm,
-    )
+    fun getDailySummary(): DailySummary {
+        // 거리·시간: Pleos 트립 값이 있으면 그걸 쓰고, 없으면 자체 누적값(fallback)
+        val distance = tripDistanceKm?.toDouble() ?: distanceKm
+        val driveMinutes = tripDriveMin ?: (driveMs / 60_000L).toInt()
+        return DailySummary(
+            date         = LocalDate.now().toString(),
+            distanceKm   = (distance * 10).roundToInt() / 10.0,
+            driveMin     = driveMinutes,
+            trips        = trips.coerceAtLeast(if (distance > 0 || driveMinutes > 0) 1 else 0),
+            wiperMin     = (wiperMs / 60_000L).toInt(),
+            hardBrakes   = hardBrakes,
+            outsideTempC = latestOutsideTempC,
+            heaterOn     = latestHeaterOn,
+            odometerKm   = latestOdometerKm,
+        )
+    }
 }

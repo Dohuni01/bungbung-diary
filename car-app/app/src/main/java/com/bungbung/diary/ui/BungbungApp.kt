@@ -52,33 +52,31 @@ fun BungbungApp(initialNickname: String? = null) {
     DisposableEffect(Unit) {
         val dataSource = PleosVehicleDataSource(context)
         val dsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        // initialize()는 fire-and-forget — 성공 여부와 무관하게 아래 수집기는 항상 돈다.
         dsScope.launch {
-            try {
-                dataSource.initialize()
-                // 차량 상태(기어·온도·연료·타이어) — StateFlow emit 시마다 반영
-                launch {
-                    dataSource.vehicleStateFlow().collect { vs ->
-                        withContext(Dispatchers.Main) {
-                            state.gear        = vs.gear
-                            state.outsideTempC = vs.outsideTempC
-                            state.fuelPercent  = vs.energy.percent
-                            state.fuelLow      = vs.energy.percent <= 15
-                            state.tires        = vs.tires.asList()
-                            state.tireLow      = vs.tires.anyLow()
-                            state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
-                        }
-                    }
+            try { dataSource.initialize() }
+            catch (e: Exception) { Log.w("BungbungApp", "Vehicle SDK init 실패: ${e.message}") }
+        }
+        // 차량 상태(기어·온도·연료·타이어) — StateFlow emit 시마다 반영
+        dsScope.launch {
+            dataSource.vehicleStateFlow().collect { vs ->
+                withContext(Dispatchers.Main) {
+                    state.gear         = vs.gear
+                    state.outsideTempC = vs.outsideTempC
+                    state.fuelPercent  = vs.energy.percent
+                    state.fuelLow      = vs.energy.percent <= 15
+                    state.tires        = vs.tires.asList()
+                    state.tireLow      = vs.tires.anyLow()
+                    state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
                 }
-                // DailySummary(와이퍼·급제동 등) — 1초 타이머로 강제 폴링
-                launch {
-                    while (true) {
-                        kotlinx.coroutines.delay(1_000L)
-                        val summary = dataSource.getDailySummary()
-                        withContext(Dispatchers.Main) { state.today = summary }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("BungbungApp", "Vehicle SDK 연결 실패 (Fake 유지): ${e.message}")
+            }
+        }
+        // DailySummary(와이퍼·급제동·거리 등) — 1초 타이머로 강제 폴링
+        dsScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(1_000L)
+                val summary = dataSource.getDailySummary()
+                withContext(Dispatchers.Main) { state.today = summary }
             }
         }
         onDispose {
