@@ -32,6 +32,9 @@ if "%DIRNAME%"=="" set DIRNAME=.
 set APP_BASE_NAME=%~n0
 set APP_HOME=%DIRNAME%
 
+@rem Use ASCII-path Gradle home to avoid encoding issues with Korean username
+if not defined GRADLE_USER_HOME set GRADLE_USER_HOME=C:\gradle-home
+
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 

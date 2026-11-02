@@ -35,7 +35,10 @@ android {
         compose = true
     }
     testOptions {
-        unitTests.all { it.useJUnitPlatform() }
+        unitTests.all {
+            it.useJUnitPlatform()
+            it.jvmArgs("-Dfile.encoding=UTF-8")
+        }
     }
 }
 
