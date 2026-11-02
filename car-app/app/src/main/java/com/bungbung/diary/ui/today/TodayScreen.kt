@@ -25,10 +25,17 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.bungbung.diary.data.local.DiaryEntryEntity
+import com.bungbung.diary.data.local.DiaryRepository
+import com.bungbung.diary.domain.CarEvent
+import com.bungbung.diary.domain.SafetyWarning
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -72,6 +79,34 @@ import java.util.Locale
  */
 @Composable
 fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val event = state.event
+
+    LaunchedEffect(event) {
+        if (event == CarEvent.FAMILY_JOINED || event == CarEvent.BOOKED || event == CarEvent.WAYPOINT_ADDED) return@LaunchedEffect
+        val text = TemplateTextGenerator.generate(
+            event      = event,
+            tone       = state.tone,
+            nickname   = state.nickname,
+            summary    = state.today,
+            tireData   = state.tires.find { it.isLow },
+            warning    = if (state.engineLight) SafetyWarning("ENGINE", "엔진 경고등") else null,
+            bookedShop = state.bookedShop,
+            bookedSlot = state.bookedSlot,
+            waypoint   = state.waypoint,
+        )
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            DiaryRepository.insert(
+                DiaryEntryEntity(
+                    date  = state.today.date,
+                    event = event.name,
+                    tone  = state.tone.name,
+                    text  = text,
+                )
+            )
+        }
+    }
+
     if (state.isDriving) {
         DrivingView(state)
         return
