@@ -12,11 +12,15 @@ import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.WheelValue
 import ai.pleos.playground.vehicle.constant.telltale.TelltaleState
 import ai.pleos.playground.vehicle.constant.telltale.TelltaleType
+import ai.pleos.playground.vehicle.api.model.area.WindowArea
+import ai.pleos.playground.vehicle.constant.area.WindowValue
+import ai.pleos.playground.vehicle.constant.control.WiperState
 import ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener
 import ai.pleos.playground.vehicle.listener.FuelPercentListener
 import ai.pleos.playground.vehicle.listener.HvacPowerStateListener
 import ai.pleos.playground.vehicle.listener.TelltaleInfoListener
 import ai.pleos.playground.vehicle.listener.TirePressureListener
+import ai.pleos.playground.vehicle.listener.WiperStateListener
 import com.bungbung.diary.data.vehicle.VehicleDataSource
 import com.bungbung.diary.domain.CarInfo
 import com.bungbung.diary.domain.DailySummary
@@ -77,6 +81,13 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
 
     // ── 리스너 인스턴스 (unregister 시 동일 참조 필요) ─────────────────────
     // gear는 AAOS CarPropertyManager 폴링으로 처리 (Pleos getGear() API deprecated)
+
+    private val wiperListener = object : WiperStateListener {
+        override fun onWiperStateUpdated(state: WiperState?) {
+            _state.value = _state.value.copy(wiperOn = state == WiperState.ON)
+        }
+        override fun onFailed(e: Exception) = Unit
+    }
 
     private val tirePressureListeners = mutableMapOf<WheelValue, TirePressureListener>()
 
@@ -152,6 +163,18 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         fetchTelltales()
         fetchEnergy()
         fetchHvac()
+        fetchWiper()
+    }
+
+    private suspend fun fetchWiper() = suspendCoroutine { cont ->
+        vehicle.getWiper().getCurrentWiperState(
+            WindowArea(WindowValue.FRONT_WINDSHIELD),
+            { state: WiperState? ->
+                _state.value = _state.value.copy(wiperOn = state == WiperState.ON)
+                cont.resume(Unit)
+            },
+            { cont.resume(Unit) },
+        )
     }
 
     private suspend fun fetchAllTires() {
@@ -229,6 +252,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         vehicle.getFuel().registerFuelPercent(fuelListener)
         vehicle.getEvBattery().registerEvBatteryStateOfCharge(evBatteryListener)
         vehicle.getHVAC().registerHvacPowerState(SeatArea(SeatValue.ROW_1_LEFT), hvacPowerListener)
+        vehicle.getWiper().registerWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener)
     }
 
     private fun unregisterCallbacks() {
@@ -241,6 +265,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         vehicle.getFuel().unregisterFuelPercent(fuelListener)
         vehicle.getEvBattery().unregisterEvBatteryStateOfCharge(evBatteryListener)
         vehicle.getHVAC().unregisterHvacPowerState(SeatArea(SeatValue.ROW_1_LEFT), hvacPowerListener)
+        vehicle.getWiper().unregisterWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener)
     }
 
     // ── 변환 헬퍼 ─────────────────────────────────────────────────────────

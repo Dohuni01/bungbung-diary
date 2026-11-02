@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bungbung.diary.BungbungApplication
 import com.bungbung.diary.data.fake.FakeData
 import com.bungbung.diary.data.text.TemplateTextGenerator
 import com.bungbung.diary.domain.toJson
@@ -219,29 +221,30 @@ private fun ToneSelector(current: Tone, onSelect: (Tone) -> Unit) {
 private fun MessageBubble(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -> Unit) {
     val event = state.event
     val warning = FakeData.warningInfo(event)
+    val context = LocalContext.current
+    val voiceManager = (context.applicationContext as BungbungApplication).voiceManager
+
+    val message = TemplateTextGenerator.generate(
+        event      = event,
+        tone       = state.tone,
+        nickname   = state.nickname,
+        summary    = state.today,
+        tireData   = state.tires.find { it.isLow },
+        warning    = if (state.engineLight) com.bungbung.diary.domain.SafetyWarning("ENGINE", "엔진 경고등") else null,
+        bookedShop = state.bookedShop,
+        bookedSlot = state.bookedSlot,
+        waypoint   = state.waypoint,
+    )
 
     SpeechBubble(modifier = Modifier.fillMaxWidth()) {
-        BubbleText(
-            TemplateTextGenerator.generate(
-                event      = event,
-                tone       = state.tone,
-                nickname   = state.nickname,
-                summary    = state.today,
-                tireData   = state.tires.find { it.isLow },
-                warning    = if (state.engineLight) com.bungbung.diary.domain.SafetyWarning("ENGINE", "엔진 경고등") else null,
-                bookedShop = state.bookedShop,
-                bookedSlot = state.bookedSlot,
-                waypoint   = state.waypoint,
-            )
-        )
+        BubbleText(message)
 
         if (warning != null) {
             WarningBoxes(warning)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // TODO(Phase 3): TextToSpeech로 읽어주기
-            BubbleButton(label = "들려줘", onClick = { /* 음성 기능 없음 */ }, leading = { SpeakerIcon() })
+            BubbleButton(label = "들려줘", onClick = { voiceManager.speak(message) }, leading = { SpeakerIcon() })
             if (event.needsRepairShop) {
                 // 운전 중에 "정비소 보여줘"라고 답했으면 주차 후 이 버튼을 강조해요
                 if (state.showShopsAfterParking) {
@@ -367,6 +370,10 @@ private fun DrivingView(state: AppState) {
  */
 @Composable
 private fun VoicePromptCard(state: AppState) {
+    val context = LocalContext.current
+    val voiceManager = (context.applicationContext as BungbungApplication).voiceManager
+    var sttListening by androidx.compose.runtime.remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .width(720.dp)
@@ -401,8 +408,32 @@ private fun VoicePromptCard(state: AppState) {
                     border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
                 ) { Text("아니", fontSize = 32.sp) }
             }
-            // TODO(Phase 3): SpeechToText SDK로 "응/아니" 듣기
-            Text("🎤 말로 대답해도 돼요 (음성 인식 준비 중)", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(
+                onClick = {
+                    if (sttListening) {
+                        voiceManager.stopListening()
+                        sttListening = false
+                    } else {
+                        sttListening = true
+                        voiceManager.startListening { text ->
+                            sttListening = false
+                            val lower = text.trim()
+                            if (lower.contains("응") || lower.contains("네") || lower.contains("예")) {
+                                state.answerYes()
+                            } else if (lower.contains("아니") || lower.contains("노")) {
+                                state.answerNo()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.height(64.dp),
+                shape = CircleShape,
+            ) {
+                Text(
+                    if (sttListening) "🎤 듣는 중... (탭해서 중지)" else "🎤 말로 대답하기",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         } else {
             Text("✓ $answer", style = MaterialTheme.typography.titleLarge, color = Ok)
         }

@@ -11,8 +11,14 @@ import com.bungbung.diary.ui.BungbungApp
 import com.bungbung.diary.ui.theme.BungbungTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val voiceManager get() = (application as BungbungApplication).voiceManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        voiceManager.initTts()
+        voiceManager.initStt()
+
         // 개발용: 에뮬레이터 키보드에 한국어가 없을 때 adb로 닉네임을 넣어요.
         // adb shell am start -S -n com.bungbung.diary/.MainActivity --es nickname 킹카
         val nicknameFromAdb = intent.getStringExtra("nickname")
@@ -26,5 +32,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        voiceManager.release()
     }
 }
