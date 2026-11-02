@@ -1,16 +1,19 @@
 package com.bungbung.diary.ui
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bungbung.diary.data.local.CarProfileEntity
+import com.bungbung.diary.data.local.CarProfileRepository
+import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.ui.booking.BookingScreen
 import com.bungbung.diary.ui.main.MainScreen
 import com.bungbung.diary.ui.onboarding.OnboardingScreen
 import com.bungbung.diary.ui.probe.ProbeScreen
 import com.bungbung.diary.ui.settings.SettingsScreen
 import com.bungbung.diary.ui.station.GasStationScreen
+import kotlinx.coroutines.launch
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -31,20 +34,45 @@ object Routes {
  */
 @Composable
 fun BungbungApp(initialNickname: String? = null) {
-    val state = remember {
-        AppState().apply {
-            if (!initialNickname.isNullOrBlank()) nickname = initialNickname.trim().take(8)
+    val state = remember { AppState() }
+    var startDest by remember { mutableStateOf<String?>(null) }
+
+    // 앱 시작 시 프로필 로드 — 온보딩 완료 여부 판단
+    LaunchedEffect(Unit) {
+        val profile = CarProfileRepository.get()
+        if (profile?.onboardingCompletedAt != null) {
+            state.nickname     = profile.nickname
+            state.tone         = runCatching { Tone.valueOf(profile.tone) }.getOrDefault(Tone.FRIEND)
+            state.deliveryDate = profile.deliveryDateIso
+            startDest = Routes.MAIN
+        } else {
+            if (!initialNickname.isNullOrBlank()) state.nickname = initialNickname.trim().take(8)
+            startDest = Routes.ONBOARDING
         }
     }
-    val nav = rememberNavController()
 
-    NavHost(navController = nav, startDestination = Routes.ONBOARDING) {
+    if (startDest == null) return  // 프로필 로드 중 — 빈 화면 (짧음)
+
+    val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
+
+    NavHost(navController = nav, startDestination = startDest!!) {
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 state = state,
                 onFinish = {
-                    nav.navigate(Routes.MAIN) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    scope.launch {
+                        CarProfileRepository.upsert(
+                            CarProfileEntity(
+                                nickname = state.nickname,
+                                tone = state.tone.name,
+                                deliveryDateIso = state.deliveryDate,
+                                onboardingCompletedAt = System.currentTimeMillis(),
+                            )
+                        )
+                        nav.navigate(Routes.MAIN) {
+                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                        }
                     }
                 },
             )
@@ -53,9 +81,9 @@ fun BungbungApp(initialNickname: String? = null) {
             MainScreen(
                 state = state,
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
-                onOpenBooking = { nav.navigate(Routes.BOOKING) },
+                onOpenBooking  = { nav.navigate(Routes.BOOKING) },
                 onOpenStations = { nav.navigate(Routes.STATIONS) },
-                onOpenProbe = { nav.navigate(Routes.PROBE) },
+                onOpenProbe    = { nav.navigate(Routes.PROBE) },
             )
         }
         composable(Routes.PROBE) {
