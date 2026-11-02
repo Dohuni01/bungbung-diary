@@ -36,6 +36,8 @@ object Routes {
 fun BungbungApp(initialNickname: String? = null) {
     val state = remember { AppState() }
     var startDest by remember { mutableStateOf<String?>(null) }
+    val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
 
     // 앱 시작 시 프로필 로드 — 온보딩 완료 여부 판단
     LaunchedEffect(Unit) {
@@ -51,10 +53,7 @@ fun BungbungApp(initialNickname: String? = null) {
         }
     }
 
-    if (startDest == null) return  // 프로필 로드 중 — 빈 화면 (짧음)
-
-    val nav = rememberNavController()
-    val scope = rememberCoroutineScope()
+    if (startDest == null) return  // 프로필 로드 중 — 빈 화면 (짧음); nav/scope는 위에서 이미 호출됨
 
     NavHost(navController = nav, startDestination = startDest!!) {
         composable(Routes.ONBOARDING) {
