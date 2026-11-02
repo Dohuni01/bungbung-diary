@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import com.bungbung.diary.ui.booking.BookingScreen
 import com.bungbung.diary.ui.main.MainScreen
 import com.bungbung.diary.ui.onboarding.OnboardingScreen
+import com.bungbung.diary.ui.probe.ProbeScreen
 import com.bungbung.diary.ui.settings.SettingsScreen
 import com.bungbung.diary.ui.station.GasStationScreen
 
@@ -17,6 +18,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val BOOKING = "booking"
     const val STATIONS = "stations"
+    const val PROBE = "probe"
 }
 
 /**
@@ -53,7 +55,11 @@ fun BungbungApp(initialNickname: String? = null) {
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onOpenBooking = { nav.navigate(Routes.BOOKING) },
                 onOpenStations = { nav.navigate(Routes.STATIONS) },
+                onOpenProbe = { nav.navigate(Routes.PROBE) },
             )
+        }
+        composable(Routes.PROBE) {
+            ProbeScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
