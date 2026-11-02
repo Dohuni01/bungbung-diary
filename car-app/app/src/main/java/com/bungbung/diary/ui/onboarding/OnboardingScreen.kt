@@ -1,6 +1,5 @@
 package com.bungbung.diary.ui.onboarding
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,10 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.bungbung.diary.data.fake.FakeData
 import com.bungbung.diary.domain.CarEvent
 import com.bungbung.diary.domain.HealthCheckItem
@@ -49,7 +46,7 @@ import com.bungbung.diary.ui.components.CarCharacter
 import com.bungbung.diary.ui.theme.Ok
 import com.bungbung.diary.ui.theme.Warning
 
-/** 첫 실행 세팅 8단계 (PROMPT.md 2-1절). 화면 하나에 할 일 하나. */
+/** 첫 실행 세팅 7단계 (PROMPT.md 2-1절). 화면 하나에 할 일 하나. */
 private enum class Step(val title: String, val skippable: Boolean = false) {
     WELCOME("환영"),
     NICKNAME("닉네임"),
@@ -57,7 +54,6 @@ private enum class Step(val title: String, val skippable: Boolean = false) {
     CONSENT("동의"),
     HEALTH_CHECK("차 상태 불러오기"),
     DELIVERY_DATE("출고일", skippable = true),
-    FAMILY("가족 연결", skippable = true),
     FIRST_MEET("첫인사"),
 }
 
@@ -114,8 +110,7 @@ fun OnboardingScreen(state: AppState, onFinish: () -> Unit) {
                     Step.TONE -> ToneStep(state)
                     Step.CONSENT -> ConsentStep(consentChecked) { consentChecked = it }
                     Step.HEALTH_CHECK -> HealthCheckStep()
-                    Step.DELIVERY_DATE -> DeliveryDateStep()
-                    Step.FAMILY -> FamilyStep()
+                    Step.DELIVERY_DATE -> DeliveryDateStep(state)
                     Step.FIRST_MEET -> FirstMeetStep(state)
                 }
             }
@@ -231,48 +226,68 @@ private fun ConsentStep(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 
 @Composable
 private fun HealthCheckStep() {
+    val ds = remember { com.bungbung.diary.data.vehicle.fake.FakeVehicleDataSource() }
+    val vehicleState = remember { ds.getVehicleState() }
+    val summary = remember { ds.getDailySummary() }
+    val carInfo = remember { ds.getCarInfo() }
+
+    val items = remember(vehicleState) {
+        buildList {
+            add(HealthCheckItem("차 정보", "${carInfo.modelYear}년식 ${carInfo.manufacturer}", HealthCheckItem.Level.OK))
+            add(HealthCheckItem("누적 주행거리", "${summary.odometerKm} km", HealthCheckItem.Level.OK))
+
+            val lowTire = vehicleState.tires.asList().firstOrNull { it.isLow }
+            if (lowTire != null) {
+                add(HealthCheckItem("타이어", "${lowTire.position} ${lowTire.psi} psi (권장 ${lowTire.recommendedPsi}) · 주의", HealthCheckItem.Level.CAUTION))
+            } else {
+                add(HealthCheckItem("타이어", "4바퀴 정상", HealthCheckItem.Level.OK))
+            }
+
+            if (vehicleState.safetyWarnings.isEmpty()) {
+                add(HealthCheckItem("경고등", "켜진 경고 없음", HealthCheckItem.Level.OK))
+            } else {
+                add(HealthCheckItem("경고등", vehicleState.safetyWarnings.joinToString { it.name }, HealthCheckItem.Level.CAUTION))
+            }
+
+            add(HealthCheckItem(
+                if (vehicleState.energy.isEv) "배터리" else "연료",
+                "${vehicleState.energy.percent}%",
+                if (vehicleState.energy.percent <= 15) HealthCheckItem.Level.CAUTION else HealthCheckItem.Level.OK,
+            ))
+        }
+    }
+
     Speech("내 몸 상태를 살펴볼게")
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FakeData.healthCheck.forEach { item ->
+        items.forEach { item ->
             val color = when (item.level) {
-                HealthCheckItem.Level.OK -> Ok
+                HealthCheckItem.Level.OK      -> Ok
                 HealthCheckItem.Level.CAUTION -> Warning
                 HealthCheckItem.Level.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
             }
             StatRow(item.name, item.result, valueColor = color)
         }
     }
-    TodoNote("지금은 고정된 예시 값이에요. 실제 차 신호는 Phase 2에서 연결해요")
 }
 
 @Composable
-private fun DeliveryDateStep() {
+private fun DeliveryDateStep(state: AppState) {
     Speech("우리 처음 만난 날은 언제야?")
-    OutlinedButton(onClick = { /* TODO: 날짜 선택 */ }) { Text("📅 출고일 고르기") }
-    Text("모르면 \"나중에\"를 누르세요. 오늘을 처음 만난 날로 쓸게요.", style = MaterialTheme.typography.bodyMedium)
-    TodoNote("날짜 선택 기능은 아직 없어요")
-}
-
-@Composable
-private fun FamilyStep() {
-    Speech("가족한테도 내 일기를 보내줄까?")
-    Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(180.dp)
-                .background(MaterialTheme.colorScheme.onSurface, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("QR", color = MaterialTheme.colorScheme.surface, style = MaterialTheme.typography.headlineMedium)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("연결 코드", style = MaterialTheme.typography.bodyMedium)
-            Text("482 915", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("가족이 폰으로 QR을 찍으면\n카카오톡으로 연결돼요", style = MaterialTheme.typography.bodyMedium)
-            Text("연결된 가족: 아직 없어요", style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-    TodoNote("서버 연결과 카카오 로그인은 아직 없어요")
+    OutlinedTextField(
+        value = state.deliveryDate ?: "",
+        onValueChange = { input ->
+            val filtered = input.filter { it.isDigit() || it == '-' }.take(10)
+            state.deliveryDate = filtered.ifBlank { null }
+        },
+        singleLine = true,
+        label = { Text("출고일 (YYYY-MM-DD)") },
+        placeholder = { Text("예: 2025-03-15") },
+    )
+    Text(
+        "모르면 \"나중에\"를 누르세요. 오늘을 처음 만난 날로 쓸게요.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
