@@ -1,11 +1,14 @@
 package com.bungbung.diary.ui
 
+import android.util.Log
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bungbung.diary.data.local.CarProfileEntity
 import com.bungbung.diary.data.local.CarProfileRepository
+import com.bungbung.diary.data.vehicle.pleos.PleosVehicleDataSource
 import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.ui.booking.BookingScreen
 import com.bungbung.diary.ui.main.MainScreen
@@ -13,7 +16,12 @@ import com.bungbung.diary.ui.onboarding.OnboardingScreen
 import com.bungbung.diary.ui.probe.ProbeScreen
 import com.bungbung.diary.ui.settings.SettingsScreen
 import com.bungbung.diary.ui.station.GasStationScreen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -35,9 +43,39 @@ object Routes {
 @Composable
 fun BungbungApp(initialNickname: String? = null) {
     val state = remember { AppState() }
+    val context = LocalContext.current
     var startDest by remember { mutableStateOf<String?>(null) }
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
+
+    // Pleos Vehicle SDK → AppState 실시간 연결
+    DisposableEffect(Unit) {
+        val dataSource = PleosVehicleDataSource(context)
+        val dsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        dsScope.launch {
+            try {
+                dataSource.initialize()
+                dataSource.vehicleStateFlow().collect { vs ->
+                    withContext(Dispatchers.Main) {
+                        state.gear         = vs.gear
+                        state.outsideTempC = vs.outsideTempC
+                        state.fuelPercent  = vs.energy.percent
+                        state.fuelLow      = vs.energy.percent <= 15
+                        state.tires        = vs.tires.asList()
+                        state.tireLow      = vs.tires.anyLow()
+                        state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
+                        state.today        = dataSource.getDailySummary()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("BungbungApp", "Vehicle SDK 연결 실패 (Fake 유지): ${e.message}")
+            }
+        }
+        onDispose {
+            dataSource.release()
+            dsScope.cancel()
+        }
+    }
 
     // 앱 시작 시 프로필 로드 — 온보딩 완료 여부 판단
     LaunchedEffect(Unit) {
