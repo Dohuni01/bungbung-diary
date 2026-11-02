@@ -10,6 +10,7 @@ import com.bungbung.diary.domain.*
 class AppState {
     var nickname    by mutableStateOf("붕붕이")
     var tone        by mutableStateOf(Tone.FRIEND)
+    var deliveryDate by mutableStateOf<String?>(null)
     var event       by mutableStateOf(CarEvent.DIARY)
 
     // 차량 상태 (ScenarioHolder에서 로드, 기본값 = DiaryDay)
@@ -100,8 +101,9 @@ class AppState {
 
     fun resetDemo() {
         loadScenario(Scenarios.DiaryDay)
-        oilDue   = false
-        nickname = "붕붕이"
-        tone     = Tone.FRIEND
+        oilDue       = false
+        nickname     = "붕붕이"
+        tone         = Tone.FRIEND
+        deliveryDate = null
     }
 }
