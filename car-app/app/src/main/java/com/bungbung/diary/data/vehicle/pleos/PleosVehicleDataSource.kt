@@ -67,11 +67,13 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
     private lateinit var vehicle: Vehicle
 
     private val _state = MutableStateFlow(defaultState())
+    private val aggregator = DailyAggregator()
 
     // AAOS CarPropertyManager (reflection — android.car only available on AAOS)
     private var aaosCarPropertyManager: Any? = null
     private var aaosCarPropertyManagerClass: Class<*>? = null
     private var aaosPollingJob: Job? = null
+    private var aaosLatestOdometerKm = 0
 
     // ── 리스너 인스턴스 (unregister 시 동일 참조 필요) ─────────────────────
     // gear는 AAOS CarPropertyManager 폴링으로 처리 (Pleos getGear() API deprecated)
@@ -114,6 +116,8 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         fetchInitialState()
         registerCallbacks()
         initAaosCarProperty()
+        val scope = CoroutineScope(Dispatchers.IO)
+        aggregator.start(scope, _state.asStateFlow())
     }
 
     override fun release() {
@@ -129,9 +133,8 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
     override fun vehicleStateFlow(): Flow<VehicleState> = _state.asStateFlow()
 
     override suspend fun getDailySummary(): DailySummary {
-        // 주행거리·와이퍼 분·급제동 등은 DailyAggregator가 실시간 신호로 집계해 Room에 저장한다.
-        // Phase 2에서 DailyAggregator → RoomDailySummaryRepo → 여기서 read 패턴으로 교체.
-        throw NotImplementedError("Phase 2: DailyAggregator + Room 구현 후 대체")
+        aggregator.updateOdometer(aaosLatestOdometerKm)
+        return aggregator.getDailySummary()
     }
 
     override suspend fun getCarInfo(): CarInfo = suspendCoroutine { cont ->
@@ -336,6 +339,10 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
                     val speedMs   = (getFloat.invoke(pm, PROP_SPEED,        0) as? Float) ?: 0f
                     val tempC     = (getFloat.invoke(pm, PROP_OUTSIDE_TEMP, 0) as? Float) ?: 0f
                     val gearInt   = (getInt.invoke(pm,   PROP_GEAR,         0) as? Int)   ?: AAOS_GEAR_PARK
+                    val odoKm     = (getFloat.invoke(pm, PROP_ODOMETER,     0) as? Float) ?: 0f
+
+                    aaosLatestOdometerKm = odoKm.toInt()
+                    aggregator.updateOdometer(aaosLatestOdometerKm)
 
                     _state.value = _state.value.copy(
                         speedKmh     = (speedMs * 3.6f).toInt(),
@@ -377,6 +384,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         private const val PROP_GEAR         = 289408000   // GEAR_SELECTION
         private const val PROP_SPEED        = 291504647   // PERF_VEHICLE_SPEED (m/s)
         private const val PROP_OUTSIDE_TEMP = 291505923   // ENV_OUTSIDE_TEMPERATURE (°C)
+        private const val PROP_ODOMETER     = 291504644   // PERF_ODOMETER (km)
         private const val AAOS_POLL_INTERVAL_MS = 1_000L
 
         // AAOS VehicleGear 정수 값

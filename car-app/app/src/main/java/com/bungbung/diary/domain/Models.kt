@@ -101,6 +101,7 @@ data class VehicleState(
     val hvac: HvacState,
     val tires: TireState,
     val safetyWarnings: List<SafetyWarning>,
+    val wiperOn: Boolean = false,
 )
 
 data class CarScenario(
