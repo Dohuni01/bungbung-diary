@@ -79,7 +79,8 @@ fun BungbungApp(initialNickname: String? = null) {
                 kotlinx.coroutines.delay(1_000L)
                 val summary = dataSource.getDailySummary()
                 withContext(Dispatchers.Main) {
-                    if (state.safetyAlert == null) state.today = summary
+                    // 수동 재현(졸음 등 today를 세팅한 경우)만 덮지 않음. 자동 감지는 실데이터 유지.
+                    if (state.manualSafetyAlert == null) state.today = summary
                 }
             }
         }

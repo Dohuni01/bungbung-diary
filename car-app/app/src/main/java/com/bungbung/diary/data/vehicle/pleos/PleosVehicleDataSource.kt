@@ -32,6 +32,8 @@ import ai.pleos.playground.vehicle.listener.LightStateListener
 import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.TelltaleInfoListener
 import ai.pleos.playground.vehicle.listener.TirePressureListener
+import ai.pleos.playground.vehicle.listener.TurnSignalStateListener
+import ai.pleos.playground.vehicle.constant.area.TurnSignalValue
 import ai.pleos.playground.vehicle.listener.WindowPositionListener
 import ai.pleos.playground.vehicle.listener.WiperStateListener
 import com.bungbung.diary.data.vehicle.VehicleDataSource
@@ -143,6 +145,16 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         override fun onFailed(e: Exception) = Unit
     }
 
+    // 깜빡이(좌/우) — 켜진 채 오래 두면 알림. OFF가 아니면 켜짐으로 본다.
+    private val turnSignalListener = object : TurnSignalStateListener {
+        override fun onTurnSignalStateUpdated(value: TurnSignalValue?) {
+            val on = value != null && value != TurnSignalValue.OFF
+            Log.i(TAG, "turnSignal = $value (on=$on)")
+            _state.value = _state.value.copy(turnSignalOn = on)
+        }
+        override fun onFailed(e: Exception) = Unit
+    }
+
     // 문 열림 — 문별로 열림 여부를 추적해 열린 문 이름 목록을 만든다.
     private val openDoorSet = java.util.concurrent.ConcurrentHashMap<DoorValue, Boolean>()
     private val doorListeners = mutableMapOf<DoorValue, DoorPositionListener>()
@@ -154,10 +166,13 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         _state.value = _state.value.copy(openDoors = open)
     }
 
-    // 운전석 안전벨트 (true=매고 있음)
+    // 운전석 안전벨트 — 실제 경고는 SEAT_BELT 텔테일(telltaleListener)이 단일 기준으로 제어한다.
+    //   (Virtual Console Telltales→Seat Belt 토글로 양방향 동작)
+    // 버클 센서는 실차에서 운전석이 '실제로' 매졌을 때 경고를 즉시 해제하는 보조 신호로만 쓴다.
+    //   (false는 무시 — 조수석 등 다른 좌석 false가 운전석 경고를 덮지 않도록)
     private val seatBeltListener = object : SeatBeltBuckledStateListener {
         override fun onSeatBeltBuckledStateUpdated(buckled: Boolean?) {
-            _state.value = _state.value.copy(seatBeltOn = buckled ?: true)
+            if (buckled == true) _state.value = _state.value.copy(seatBeltOn = true)
         }
         override fun onFailed(e: Exception) = Unit
     }
@@ -189,7 +204,15 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
 
     private val telltaleListener = object : TelltaleInfoListener {
         override fun onTelltaleInfoUpdated(telltales: Telltales?) {
-            _state.value = _state.value.copy(safetyWarnings = telltales?.toWarnings() ?: emptyList())
+            val warnings = telltales?.toWarnings() ?: emptyList()
+            val codes = warnings.map { it.code }
+            Log.i(TAG, "telltales active = $codes")
+            // SEAT_BELT 경고등(텔테일) = "안전벨트 안 맴" 신호. ON이면 seatBeltOn=false.
+            // Virtual Console Telltales→Seat Belt 토글로 양방향 제어됨(실차 경고등과 동일 의미).
+            _state.value = _state.value.copy(
+                safetyWarnings = warnings,
+                seatBeltOn = "SEAT_BELT" !in codes,
+            )
         }
         override fun onFailed(e: Exception) = Unit
     }
@@ -373,6 +396,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         safely("evBattery"){ vehicle.getEvBattery().registerEvBatteryStateOfCharge(evBatteryListener) }
         safely("hvac")     { vehicle.getHVAC().registerHvacPowerState(SeatArea(SeatValue.ROW_1_LEFT), hvacPowerListener) }
         safely("wiper")    { vehicle.getWiper().registerWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
+        safely("turnSignal"){ vehicle.getTurnSignal().registerTurnSignalState(turnSignalListener) }
 
         // 문 (각 문마다)
         for (doorValue in DOOR_LABELS.keys) {
@@ -430,6 +454,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         safely("lowBeam-unreg")  { vehicle.getLight().unregisterLowBeamLightState(lowBeamListener) }
         safely("tailLamp-unreg") { vehicle.getLight().unregisterTailLampLightState(tailLampListener) }
         safely("wiper-unreg")     { vehicle.getWiper().unregisterWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
+        safely("turnSignal-unreg"){ vehicle.getTurnSignal().unregisterTurnSignalState(turnSignalListener) }
     }
 
     // ── 변환 헬퍼 ─────────────────────────────────────────────────────────

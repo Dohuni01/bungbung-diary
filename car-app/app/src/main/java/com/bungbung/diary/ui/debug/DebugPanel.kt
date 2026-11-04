@@ -75,17 +75,26 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
 
         // ── 2) 안전 알림 재현 (위험도 3단계) ──────────────────────────────
         SectionTitle("안전 알림 재현")
-        if (state.safetyAlert != null) {
+        state.manualSafetyAlert?.let { active ->
             Button(
                 onClick = { state.clearSafety() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-            ) { Text("■ 알림 끄기 (${state.safetyAlert!!.title})") }
+            ) { Text("■ 알림 끄기 (${active.title})") }
+        }
+        // 실데이터 자동 감지 중이면(에뮬 와이퍼+창문 등) 표시
+        if (state.manualSafetyAlert == null) {
+            state.autoSafetyAlert?.let { auto ->
+                Text("🔵 실시간 감지 중: ${auto.title}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary)
+            }
         }
         SafetyUrgency.entries.forEach { level ->
             UrgencyGroup(
                 level = level,
-                active = state.safetyAlert,
+                active = state.manualSafetyAlert,
                 onPick = { state.triggerSafety(it) },
             )
         }

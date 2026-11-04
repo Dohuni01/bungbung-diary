@@ -111,6 +111,7 @@ data class VehicleState(
     val seatBeltOn: Boolean = true,              // 운전석 안전벨트 (true=매고 있음)
     val windowOpen: Boolean = false,             // 창문 하나라도 열림
     val lightOn: Boolean = false,                // 전조등/미등 켜져 있음
+    val turnSignalOn: Boolean = false,           // 깜빡이(좌/우) 켜져 있음
 )
 
 data class CarScenario(

@@ -41,8 +41,42 @@ class AppState {
     // SDK가 주는 실시간 전체 상태 스냅샷 (문/벨트/창문/라이트 포함). null이면 플랫 필드로 대체.
     var liveState by mutableStateOf<VehicleState?>(null)
 
-    // 현재 발동 중인 안전 알림 (DebugPanel 버튼으로 재현, 실시간 대화 최우선). null이면 없음.
-    var safetyAlert by mutableStateOf<SafetyAlert?>(null)
+    // 안전 알림 — 두 출처:
+    //  manualSafetyAlert: DebugPanel 버튼으로 재현(발표용). 관련 차량 상태도 같이 세팅.
+    //  autoSafetyAlert : 실제 차량 데이터(liveState)로 자동 감지(에뮬레이터에서도 실시간 작동).
+    // 실제 표시는 manual 우선, 없으면 auto.
+    var manualSafetyAlert by mutableStateOf<SafetyAlert?>(null)
+
+    /**
+     * liveState(실시간 SDK 데이터)에서 바로 감지되는 안전 알림.
+     * 권한 3단계(CAR_/CONTROL_/PRIVATE_) 선언 후 에뮬레이터 Virtual Console로도 전부 재현 가능.
+     *  - 텔테일: Virtual Console → Safety 도메인에서 각 경고등 ON/OFF
+     *  - 문/창문/와이퍼/깜빡이: 해당 도메인 컨트롤
+     * 위험도 높은 것(🔴)부터 우선.
+     */
+    val autoSafetyAlert: SafetyAlert? get() {
+        val vs = liveState ?: return null
+        val codes = vs.safetyWarnings.map { it.code }.toSet()
+        val driving = vs.gear == Gear.D
+        return when {
+            // 🔴 바로 세워야
+            "ENGINE_TEMPERATURE" in codes -> SafetyAlert.ENGINE_OVERHEAT
+            "ENGINE_OIL_PRESSURE" in codes || "MASTER_WARNING" in codes -> SafetyAlert.RED_WARNING
+            "TPMS" in codes -> SafetyAlert.TIRE_BLOWOUT
+            // 🟡 곧 손봐야 (주행 중일 때만)
+            ("PARKING_BRAKE" in codes || "ELECTRONIC_PARKING_BRAKE" in codes) && driving -> SafetyAlert.PARKING_BRAKE
+            ("DOOR_OPEN" in codes || "TRUNK_OPEN" in codes || vs.openDoors.isNotEmpty()) && driving -> SafetyAlert.DOOR_OPEN_DRIVING
+            // 🟢 습관
+            "ICY_ROAD" in codes -> SafetyAlert.BLACK_ICE
+            "DRIVER_ATTENTION" in codes -> SafetyAlert.DROWSY
+            vs.wiperOn && vs.windowOpen -> SafetyAlert.RAIN_WINDOW
+            vs.turnSignalOn -> SafetyAlert.TURN_SIGNAL
+            else -> null
+        }
+    }
+
+    /** 지금 붕붕이가 알릴 안전 알림 (수동 우선, 없으면 실데이터 자동 감지) */
+    val safetyAlert: SafetyAlert? get() = manualSafetyAlert ?: autoSafetyAlert
 
     // 시뮬레이터(디버그 패널)용 — SDK 미연결 시 fallback vehicleState에 반영
     var simOpenDoor   by mutableStateOf(false)
@@ -103,7 +137,7 @@ class AppState {
     /** 시나리오를 로드해 차량 상태를 일괄 갱신 */
     fun loadScenario(scenario: CarScenario) {
         ScenarioHolder.select(scenario)
-        safetyAlert  = null
+        manualSafetyAlert = null
         val s = scenario.currentState
         gear         = s.gear
         today        = scenario.todaySummary
@@ -129,7 +163,7 @@ class AppState {
      *  - 타이어 알림 → 해당 타이어 공기압을 낮춤
      */
     fun triggerSafety(alert: SafetyAlert) {
-        safetyAlert = alert
+        manualSafetyAlert = alert
         voiceAnswer = null
         if (alert.whileDriving) gear = Gear.D else gear = Gear.P
 
@@ -152,8 +186,8 @@ class AppState {
         }
     }
 
-    /** 안전 알림만 해제 (차량 상태는 그대로) */
-    fun clearSafety() { safetyAlert = null }
+    /** 수동 안전 알림만 해제 (차량 상태는 그대로) */
+    fun clearSafety() { manualSafetyAlert = null }
 
     /** 이벤트 강제 발동 (시나리오 로드 없이 event만 바꾸고 싶을 때) */
     fun trigger(newEvent: CarEvent) {
@@ -194,7 +228,7 @@ class AppState {
     /** 이벤트·예약·경유지 상태만 초기화 — 차량 데이터(gear/today/tires)는 SDK가 덮어쓰므로 건드리지 않음 */
     fun resetEvent() {
         event        = CarEvent.DIARY
-        safetyAlert  = null
+        manualSafetyAlert = null
         voiceAnswer  = null
         bookedShop   = null
         bookedSlot   = null

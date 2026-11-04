@@ -75,7 +75,6 @@ enum class SafetyAlert(
     TURN_SIGNAL(
         SafetyUrgency.HABIT, "깜빡이 계속 켜짐",
         "깜빡이가 계속 켜져 있어.",
-        whileDriving = true,
     ),
     RAIN_WINDOW(
         SafetyUrgency.HABIT, "비 오는데 창문 열림",
