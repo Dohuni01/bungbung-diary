@@ -3,16 +3,29 @@ package com.bungbung.diary.ui.debug
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bungbung.diary.data.vehicle.fake.Scenarios
 import com.bungbung.diary.domain.CarEvent
-import com.bungbung.diary.domain.CarScenario
+import com.bungbung.diary.domain.SafetyAlert
+import com.bungbung.diary.domain.SafetyUrgency
 import com.bungbung.diary.ui.AppState
 
+/**
+ * 개발·시연용 시뮬레이터 패널 (화면 오른쪽).
+ *
+ * 구성 (위에서 아래로):
+ *  1) 시나리오 선택 (주차/주행/마일스톤 등)
+ *  2) 안전 알림 재현 — 위험도 3단계(🔴🟡🟢)로 묶음. 발표에서 버튼 하나로 각 상황 재현.
+ *  3) 이벤트·기어·실시간 토글 (기존 디버그 도구)
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier = Modifier) {
@@ -24,15 +37,14 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
             .background(MaterialTheme.colorScheme.surface)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("시뮬레이터", style = MaterialTheme.typography.titleLarge)
         Text("개발·시연용", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        HorizontalDivider()
-        Text("시나리오 선택", style = MaterialTheme.typography.titleMedium)
-
+        // ── 1) 시나리오 선택 ──────────────────────────────────────────────
+        SectionTitle("시나리오 선택")
         ExposedDropdownMenuBox(
             expanded = scenarioExpanded,
             onExpandedChange = { scenarioExpanded = !scenarioExpanded },
@@ -61,20 +73,34 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
             }
         }
 
-        HorizontalDivider()
-        Text("이벤트 강제 발동", style = MaterialTheme.typography.titleMedium)
-        SimButton("오늘 일기")            { state.trigger(CarEvent.DIARY) }
-        SimButton("타이어 공기압 낮음")   { state.loadScenario(Scenarios.TireLow) }
-        SimButton("엔진 경고등 켜짐")     { state.loadScenario(Scenarios.EngineWarning) }
-        SimButton("연료 부족 (10%)")      { state.trigger(CarEvent.LOW_FUEL); state.fuelLow = true }
-        SimButton("엔진오일 교체 시기")   { state.trigger(CarEvent.ENGINE_OIL) }
-        SimButton("1만 km 돌파")          { state.loadScenario(Scenarios.Milestone10k) }
-        SimButton("출고 1주년")           { state.loadScenario(Scenarios.Birthday) }
-        SimButton("주간 일기 보내기")     { state.trigger(CarEvent.WEEKLY) }
-        SimButton("주행 중으로 전환")     { state.loadScenario(Scenarios.Driving) }
+        // ── 2) 안전 알림 재현 (위험도 3단계) ──────────────────────────────
+        SectionTitle("안전 알림 재현")
+        if (state.safetyAlert != null) {
+            Button(
+                onClick = { state.clearSafety() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) { Text("■ 알림 끄기 (${state.safetyAlert!!.title})") }
+        }
+        SafetyUrgency.entries.forEach { level ->
+            UrgencyGroup(
+                level = level,
+                active = state.safetyAlert,
+                onPick = { state.triggerSafety(it) },
+            )
+        }
 
-        HorizontalDivider()
-        Text("기어", style = MaterialTheme.typography.titleMedium)
+        // ── 3) 기타 이벤트 ────────────────────────────────────────────────
+        SectionTitle("기타 이벤트")
+        SimButton("오늘 일기")          { state.trigger(CarEvent.DIARY) }
+        SimButton("연료 부족 (10%)")    { state.trigger(CarEvent.LOW_FUEL); state.fuelLow = true }
+        SimButton("엔진오일 교체 시기") { state.trigger(CarEvent.ENGINE_OIL) }
+        SimButton("1만 km 돌파")        { state.loadScenario(Scenarios.Milestone10k) }
+        SimButton("출고 1주년")         { state.loadScenario(Scenarios.Birthday) }
+        SimButton("주간 일기 보내기")   { state.trigger(CarEvent.WEEKLY) }
+
+        // ── 기어 ──────────────────────────────────────────────────────────
+        SectionTitle("기어")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             com.bungbung.diary.domain.Gear.entries.forEach { gear ->
                 if (state.gear == gear) {
@@ -85,8 +111,8 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
             }
         }
 
-        HorizontalDivider()
-        Text("붕붕이 상태 (실시간 대화 테스트)", style = MaterialTheme.typography.titleMedium)
+        // ── 실시간 대화 토글 ──────────────────────────────────────────────
+        SectionTitle("붕붕이 상태 (실시간 대화)")
         ToggleRow("운전석 문 열림", state.simOpenDoor)    { state.simOpenDoor = it }
         ToggleRow("안전벨트 안 맴", state.simSeatBeltOff)  { state.simSeatBeltOff = it }
         ToggleRow("창문 열림", state.simWindowOpen)        { state.simWindowOpen = it }
@@ -94,9 +120,53 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
 
         HorizontalDivider()
         OutlinedButton(onClick = { state.resetEvent() }, modifier = Modifier.fillMaxWidth()) {
-            Text("이벤트 초기화")
+            Text("전체 초기화")
         }
     }
+}
+
+/** 위험도 한 단계(🔴/🟡/🟢) 묶음 — 제목 + 해당 알림 버튼들 */
+@Composable
+private fun UrgencyGroup(level: SafetyUrgency, active: SafetyAlert?, onPick: (SafetyAlert) -> Unit) {
+    val alerts = SafetyAlert.byUrgency(level)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(urgencyTint(level), RoundedCornerShape(12.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "${level.emoji} ${level.label}",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        alerts.forEach { alert ->
+            val isActive = alert == active
+            if (isActive) {
+                Button(onClick = { onPick(alert) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(alert.title, style = MaterialTheme.typography.bodySmall)
+                }
+            } else {
+                OutlinedButton(onClick = { onPick(alert) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(alert.title, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+/** 위험도별 연한 배경색 */
+private fun urgencyTint(level: SafetyUrgency): Color = when (level) {
+    SafetyUrgency.CRITICAL -> Color(0xFFFDECEC)
+    SafetyUrgency.SOON     -> Color(0xFFFFF6E0)
+    SafetyUrgency.HABIT    -> Color(0xFFEAF6EC)
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    HorizontalDivider()
+    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 }
 
 @Composable
@@ -106,7 +176,7 @@ private fun SimButton(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Switch(checked = checked, onCheckedChange = onChange)
     }

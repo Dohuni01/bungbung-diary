@@ -101,7 +101,7 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
         }
     }
 
-    val talk = CarTalkGenerator.talk(state.vehicleState, state.tone, state.nickname)
+    val talk = CarTalkGenerator.talk(state.vehicleState, state.tone, state.nickname, state.safetyAlert)
 
     if (state.isDriving) {
         DrivingView(state, talk)
@@ -228,6 +228,8 @@ private fun LiveTalkBubble(
             when (talk.kind) {
                 CarTalk.Kind.FUEL -> BubbleOutlinedButton("가까운 주유소 보기", onOpenStations)
                 CarTalk.Kind.TIRE, CarTalk.Kind.ENGINE -> BubbleOutlinedButton("가까운 정비소 보기", onOpenBooking)
+                CarTalk.Kind.SAFETY ->
+                    if (talk.alert?.needsRepairShop == true) BubbleOutlinedButton("가까운 정비소 보기", onOpenBooking)
                 else -> Unit
             }
         }

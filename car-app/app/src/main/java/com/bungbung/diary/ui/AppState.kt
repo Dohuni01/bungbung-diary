@@ -41,6 +41,9 @@ class AppState {
     // SDK가 주는 실시간 전체 상태 스냅샷 (문/벨트/창문/라이트 포함). null이면 플랫 필드로 대체.
     var liveState by mutableStateOf<VehicleState?>(null)
 
+    // 현재 발동 중인 안전 알림 (DebugPanel 버튼으로 재현, 실시간 대화 최우선). null이면 없음.
+    var safetyAlert by mutableStateOf<SafetyAlert?>(null)
+
     // 시뮬레이터(디버그 패널)용 — SDK 미연결 시 fallback vehicleState에 반영
     var simOpenDoor   by mutableStateOf(false)
     var simSeatBeltOff by mutableStateOf(false)
@@ -63,7 +66,8 @@ class AppState {
 
     val odometerKm: Int get() = today.odometerKm
     val title: String  get() = "$nickname 일기"
-    val isDriving: Boolean get() = gear == Gear.D
+    // 기어 D이거나, '주행 중' 안전 알림을 재현 중이면 주행 화면으로 (에뮬 기어 emit에 덮이지 않게)
+    val isDriving: Boolean get() = gear == Gear.D || safetyAlert?.whileDriving == true
 
     val mood: Mood get() = when {
         isDriving        -> Mood.FOCUS
@@ -99,6 +103,7 @@ class AppState {
     /** 시나리오를 로드해 차량 상태를 일괄 갱신 */
     fun loadScenario(scenario: CarScenario) {
         ScenarioHolder.select(scenario)
+        safetyAlert  = null
         val s = scenario.currentState
         gear         = s.gear
         today        = scenario.todaySummary
@@ -115,6 +120,40 @@ class AppState {
         waypoint     = null
         showShopsAfterParking = false
     }
+
+    /**
+     * 안전 알림 재현 (발표·시연용).
+     * 알림을 세팅하고, 상황에 맞는 차량 상태도 같이 바꿔 '실제처럼' 보이게 한다.
+     *  - 주행 중 상황(whileDriving) → 기어 D로 두어 '주행 중' 화면 표시
+     *  - 졸음운전 → 오늘 주행시간/거리를 2시간치로
+     *  - 타이어 알림 → 해당 타이어 공기압을 낮춤
+     */
+    fun triggerSafety(alert: SafetyAlert) {
+        safetyAlert = alert
+        voiceAnswer = null
+        if (alert.whileDriving) gear = Gear.D else gear = Gear.P
+
+        when (alert) {
+            SafetyAlert.DROWSY ->
+                today = today.copy(driveMin = 125, distanceKm = 168.4, trips = 1)
+            SafetyAlert.TIRE_BLOWOUT -> {
+                tires = tires.toMutableList().also { it[2] = TireStatus("왼쪽 뒤", 14, 36) }
+                tireLow = true
+            }
+            SafetyAlert.TIRE_SLOW_LEAK -> {
+                tires = tires.toMutableList().also { it[2] = TireStatus("왼쪽 뒤", 29, 36) }
+                tireLow = true
+            }
+            SafetyAlert.ENGINE_OVERHEAT, SafetyAlert.RED_WARNING ->
+                engineLight = true
+            SafetyAlert.BLACK_ICE ->
+                outsideTempC = -4
+            else -> Unit
+        }
+    }
+
+    /** 안전 알림만 해제 (차량 상태는 그대로) */
+    fun clearSafety() { safetyAlert = null }
 
     /** 이벤트 강제 발동 (시나리오 로드 없이 event만 바꾸고 싶을 때) */
     fun trigger(newEvent: CarEvent) {
@@ -155,6 +194,7 @@ class AppState {
     /** 이벤트·예약·경유지 상태만 초기화 — 차량 데이터(gear/today/tires)는 SDK가 덮어쓰므로 건드리지 않음 */
     fun resetEvent() {
         event        = CarEvent.DIARY
+        safetyAlert  = null
         voiceAnswer  = null
         bookedShop   = null
         bookedSlot   = null

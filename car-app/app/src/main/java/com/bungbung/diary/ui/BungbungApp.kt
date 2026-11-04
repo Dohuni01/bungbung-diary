@@ -73,11 +73,14 @@ fun BungbungApp(initialNickname: String? = null) {
             }
         }
         // DailySummary(와이퍼·급제동·거리 등) — 1초 타이머로 강제 폴링
+        // 단, 안전 알림 재현 중에는 시연용으로 세팅한 today(예: 졸음운전 125분)를 덮지 않는다.
         dsScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(1_000L)
                 val summary = dataSource.getDailySummary()
-                withContext(Dispatchers.Main) { state.today = summary }
+                withContext(Dispatchers.Main) {
+                    if (state.safetyAlert == null) state.today = summary
+                }
             }
         }
         onDispose {

@@ -2,6 +2,8 @@ package com.bungbung.diary.data.text
 
 import com.bungbung.diary.domain.Gear
 import com.bungbung.diary.domain.Mood
+import com.bungbung.diary.domain.SafetyAlert
+import com.bungbung.diary.domain.SafetyUrgency
 import com.bungbung.diary.domain.Tone
 import com.bungbung.diary.domain.VehicleState
 
@@ -10,9 +12,11 @@ data class CarTalk(
     val message: String,
     val mood: Mood,
     val kind: Kind,
+    /** 안전 알림에서 비롯된 말이면 그 알림 (UI에서 정비소 버튼 판단용) */
+    val alert: SafetyAlert? = null,
 ) {
     /** 말의 종류 — UI에서 액션 버튼(정비소/주유소)을 붙일지 판단 */
-    enum class Kind { ENGINE, DOOR, SEATBELT, WINDOW, LIGHT, FUEL, TIRE, IDLE }
+    enum class Kind { SAFETY, ENGINE, DOOR, SEATBELT, WINDOW, LIGHT, FUEL, TIRE, IDLE }
 }
 
 /**
@@ -23,7 +27,15 @@ data class CarTalk(
  */
 object CarTalkGenerator {
 
-    fun talk(state: VehicleState, tone: Tone, nickname: String): CarTalk {
+    fun talk(state: VehicleState, tone: Tone, nickname: String, alert: SafetyAlert? = null): CarTalk {
+        // 0. 안전 알림 — 모든 것에 우선. 말투 무관 고정 멘트(위급 시 농담 없이).
+        if (alert != null) {
+            val mood = when (alert.urgency) {
+                SafetyUrgency.CRITICAL, SafetyUrgency.SOON -> Mood.WORRIED
+                SafetyUrgency.HABIT -> Mood.FOCUS
+            }
+            return CarTalk(alert.message, mood, CarTalk.Kind.SAFETY, alert)
+        }
         // 1. 엔진 경고 — 가장 심각
         if (state.safetyWarnings.any { it.code == "ENGINE" }) {
             return CarTalk(engine(tone), Mood.WORRIED, CarTalk.Kind.ENGINE)
