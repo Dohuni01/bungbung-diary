@@ -99,9 +99,10 @@ class DailyAggregator {
     }
 
     fun getDailySummary(): DailySummary {
-        // 거리·시간: Pleos 트립 값이 있으면 그걸 쓰고, 없으면 자체 누적값(fallback)
-        val distance = tripDistanceKm?.toDouble() ?: distanceKm
-        val driveMinutes = tripDriveMin ?: (driveMs / 60_000L).toInt()
+        // 거리·시간: Pleos 트립값과 속도 적분 백업 중 '큰 값'을 쓴다.
+        // (트립 API가 0/null로 멈춰 있어도 속도 적분 백업이 거리를 올릴 수 있도록)
+        val distance = maxOf(tripDistanceKm?.toDouble() ?: 0.0, distanceKm)
+        val driveMinutes = maxOf(tripDriveMin ?: 0, (driveMs / 60_000L).toInt())
         return DailySummary(
             date         = LocalDate.now().toString(),
             distanceKm   = (distance * 10).roundToInt() / 10.0,

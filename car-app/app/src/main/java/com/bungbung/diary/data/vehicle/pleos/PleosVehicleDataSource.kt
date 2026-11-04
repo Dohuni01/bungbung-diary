@@ -104,11 +104,17 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         override fun onFailed(e: Exception) = Unit
     }
 
-    // 오늘 트립 주행거리 (km) — 액셀 밟으면 증가
+    // PERF_ODOMETER 첫 수신값 = 앱 시작 시점 기준. delta를 트립 거리로 사용.
+    private var odometerBaselineKm = -1f
+
+    // 오늘 트립 주행거리 (km) — PERF_ODOMETER delta
     private val distanceListener = object : DistanceDrivenListener {
         override fun onDistanceDrivenUpdated(km: Float?) {
-            Log.i(TAG, "tripDistance = $km km")
-            if (km != null) _state.value = _state.value.copy(tripDistanceKm = km)
+            if (km == null) return
+            if (odometerBaselineKm < 0f) odometerBaselineKm = km
+            val tripKm = (km - odometerBaselineKm).coerceAtLeast(0f)
+            Log.i(TAG, "tripDistance = $tripKm km (odometer=$km, baseline=$odometerBaselineKm)")
+            _state.value = _state.value.copy(tripDistanceKm = tripKm)
         }
         override fun onFailed(e: Exception) = Unit
     }
@@ -359,7 +365,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         }
 
         safely("gear")     { vehicle.getGear().registerGearSelection(gearListener) }
-        safely("distance") { vehicle.getOdometer().registerTripCurrentDrivingDistance(distanceListener) }
+        safely("distance") { vehicle.getOdometer().registerDistanceDriven(distanceListener) }
         safely("driveTime"){ vehicle.getOdometer().registerTripCurrentDrivingTime(driveTimeListener) }
         safely("brake")    { vehicle.getBrake().registerBrakePedalStatus(brakeListener) }
         safely("telltale") { vehicle.getSafety().registerTelltales(telltaleListener) }
@@ -405,7 +411,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         tirePressureListeners.clear()
 
         safely("gear-unreg")      { vehicle.getGear().unregisterGearSelection(gearListener) }
-        safely("distance-unreg")  { vehicle.getOdometer().unregisterTripCurrentDrivingDistance(distanceListener) }
+        safely("distance-unreg") { vehicle.getOdometer().unregisterDistanceDriven(distanceListener) }
         safely("driveTime-unreg") { vehicle.getOdometer().unregisterTripCurrentDrivingTime(driveTimeListener) }
         safely("brake-unreg")     { vehicle.getBrake().unregisterBrakePedalStatus(brakeListener) }
         safely("telltale-unreg")  { vehicle.getSafety().unregisterTelltales(telltaleListener) }
@@ -519,15 +525,37 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
                 pmClass.getMethod("getFloatProperty", Int::class.java, Int::class.java)
             } catch (_: NoSuchMethodException) { return@launch }
 
-            while (true) {
-                try {
-                    val tempC = (getFloat.invoke(pm, PROP_OUTSIDE_TEMP, 0) as? Float) ?: 0f
-                    val odoKm = (getFloat.invoke(pm, PROP_ODOMETER,     0) as? Float) ?: 0f
+            // 속성별 독립 읽기 — 하나가 권한/미지원으로 실패해도 나머지는 계속 읽는다.
+            // (예: 외기온도는 CAR_EXTERIOR_ENVIRONMENT 미보유로 실패해도 누적거리·속도는 읽히도록)
+            val logged = HashMap<Int, Boolean>()   // propId → 마지막 성공여부 (상태 전이 시에만 로그)
+            fun readFloat(propId: Int, label: String): Float? {
+                return try {
+                    val v = getFloat.invoke(pm, propId, 0) as? Float
+                    if (logged[propId] != true) { Log.i(TAG, "AAOS $label OK = $v"); logged[propId] = true }
+                    v
+                } catch (e: Exception) {
+                    if (logged[propId] != false) {
+                        val cause = (e as? java.lang.reflect.InvocationTargetException)?.targetException ?: e
+                        Log.w(TAG, "AAOS $label 읽기 불가: ${cause.javaClass.simpleName}: ${cause.message}")
+                        logged[propId] = false
+                    }
+                    null
+                }
+            }
 
-                    aaosLatestOdometerKm = odoKm.toInt()
+            while (true) {
+                readFloat(PROP_ODOMETER, "누적거리")?.let {
+                    aaosLatestOdometerKm = it.toInt()
                     aggregator.updateOdometer(aaosLatestOdometerKm)
-                    _state.value = _state.value.copy(outsideTempC = tempC.toInt())
-                } catch (_: Exception) { /* 권한 없음 or 값 없음 → 유지 */ }
+                }
+                // 속도(km/h)를 채워 DailyAggregator의 속도 적분 백업 거리 계산을 되살린다.
+                // (Pleos 트립 거리 API가 값을 안 줘도 이 경로로 거리가 누적됨)
+                readFloat(PROP_SPEED, "속도")?.let {
+                    _state.value = _state.value.copy(speedKmh = (it * 3.6f).toInt())
+                }
+                readFloat(PROP_OUTSIDE_TEMP, "외기온도")?.let {
+                    _state.value = _state.value.copy(outsideTempC = it.toInt())
+                }
                 delay(AAOS_POLL_INTERVAL_MS)
             }
         }
@@ -576,6 +604,7 @@ class PleosVehicleDataSource(private val context: Context) : VehicleDataSource {
         // AAOS VehiclePropertyIds (API 34 기준) — best-effort 보조용
         private const val PROP_OUTSIDE_TEMP = 291505923   // ENV_OUTSIDE_TEMPERATURE (°C)
         private const val PROP_ODOMETER     = 291504644   // PERF_ODOMETER (km)
+        private const val PROP_SPEED        = 291504647   // PERF_VEHICLE_SPEED (m/s) — 속도 적분 백업 거리용
         private const val AAOS_POLL_INTERVAL_MS = 1_000L
 
         private val WHEEL_POSITIONS = mapOf(
