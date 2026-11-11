@@ -1,0 +1,141 @@
+package com.bungbung.diary.domain
+
+/** 말투 3종 (PROMPT.md 6절) */
+enum class Tone(val label: String, val description: String) {
+    FRIEND("친구", "반말, 다정하고 장난스럽게"),
+    BUTLER("집사", "존댓말, 정중하고 차분하게"),
+    BLUNT("무뚝뚝", "짧은 단문, 꾸밈말 없음"),
+}
+
+/** 차가 말하는 상황 (PROMPT.md 6절) */
+enum class CarEvent(val title: String) {
+    FIRST_MEET("첫인사"),
+    FAMILY_JOINED("가족 연결"),
+    DIARY("오늘의 일기"),
+    TIRE_LOW("타이어 공기압 낮음"),
+    SAFETY_WARNING("엔진 경고등"),
+    MILESTONE_ODO("1만 km 돌파"),
+    BIRTHDAY("출고 1주년"),
+    WEEKLY("가족 주간 일기"),
+    BOOKED("정비 예약"),
+    LOW_FUEL("연료 부족"),
+    ENGINE_OIL("엔진오일 교체 필요"),
+    WAYPOINT_ADDED("경유지 추가"),
+    ;
+
+    val isWarning: Boolean get() = this == TIRE_LOW || this == SAFETY_WARNING || this == LOW_FUEL || this == ENGINE_OIL
+
+    /** 정비소로 이어지는 경고 */
+    val needsRepairShop: Boolean get() = this == TIRE_LOW || this == SAFETY_WARNING || this == ENGINE_OIL
+
+    /** 주유소로 이어지는 경고 */
+    val needsGasStation: Boolean get() = this == LOW_FUEL
+    val isCelebration: Boolean get() = this == MILESTONE_ODO || this == BIRTHDAY
+}
+
+enum class Gear { P, R, N, D }
+
+/** 캐릭터 표정 8종. CarCharacter가 기분마다 눈·입·소품을 다르게 그려요. */
+enum class Mood(val emoji: String, val label: String) {
+    HAPPY("😊", "평소"),
+    WORRIED("😟", "걱정"),       // 운전자가 해결할 일 (문 열림, 벨트 등)
+    CELEBRATE("🥳", "축하"),
+    FOCUS("😐", "집중"),
+    HUNGRY("🥺", "배고픔"),      // 연료 부족, 맛집 가는 길
+    SICK("🤒", "아픔"),          // 엔진 경고, 타이어 등 차에 생긴 문제
+    CALM("😌", "차분"),          // 장례식장 가는 길, 자연
+    LOVE("🥰", "설렘"),          // 공항(여행) 가는 길
+}
+
+/** 차 안에서 만드는 하루 요약 (PROMPT.md 6절 DailySummary) */
+data class DailySummary(
+    val date: String,
+    val distanceKm: Double,
+    val driveMin: Int,
+    val trips: Int,
+    val wiperMin: Int,
+    val hardBrakes: Int,
+    val outsideTempC: Int,
+    val heaterOn: Boolean,
+    val odometerKm: Int,
+)
+
+/** 경고 카드의 고정 3칸: 급한 정도 / 무슨 뜻 / 할 일 */
+data class WarningInfo(val urgency: String, val meaning: String, val todo: String)
+
+data class GasStation(val name: String, val meta: String, val price: String)
+
+data class Shop(val name: String, val meta: String, val slots: List<String>)
+
+data class DiaryEntry(val date: String, val event: CarEvent, val text: String)
+
+data class TireStatus(val position: String, val psi: Int, val recommendedPsi: Int) {
+    val isLow: Boolean get() = psi < recommendedPsi - 4
+}
+
+data class HealthCheckItem(val name: String, val result: String, val level: Level) {
+    enum class Level { OK, CAUTION, UNKNOWN }
+}
+
+// ---- 차량 상태 (시나리오 시스템용) ----
+
+data class EnergyState(val percent: Int, val isEv: Boolean)
+
+data class HvacState(val setTempC: Int, val heaterOn: Boolean)
+
+data class TireState(
+    val frontLeft: TireStatus,
+    val frontRight: TireStatus,
+    val rearLeft: TireStatus,
+    val rearRight: TireStatus,
+) {
+    fun asList() = listOf(frontLeft, frontRight, rearLeft, rearRight)
+    fun anyLow() = asList().any { it.isLow }
+}
+
+data class SafetyWarning(val code: String, val name: String)
+
+data class CarInfo(val manufacturer: String, val modelYear: Int)
+
+data class VehicleState(
+    val gear: Gear,
+    val speedKmh: Int,
+    val outsideTempC: Int,
+    val energy: EnergyState,
+    val hvac: HvacState,
+    val tires: TireState,
+    val safetyWarnings: List<SafetyWarning>,
+    val wiperOn: Boolean = false,
+    val brakePressed: Boolean = false,
+    // Pleos 트립 누적값 (SDK가 직접 제공) — null이면 집계기 자체 계산 사용
+    val tripDistanceKm: Float? = null,
+    val tripDriveMin: Int? = null,
+    // 붕붕이가 실시간으로 말 거는 상태들
+    val openDoors: List<String> = emptyList(),  // 열린 문 이름 (운전석/조수석/뒷좌석/보닛/트렁크)
+    val seatBeltOn: Boolean = true,              // 운전석 안전벨트 (true=매고 있음)
+    val windowOpen: Boolean = false,             // 창문 하나라도 열림
+    val lightOn: Boolean = false,                // 전조등/미등 켜져 있음
+    val turnSignalOn: Boolean = false,           // 깜빡이(좌/우) 켜져 있음
+)
+
+data class CarScenario(
+    val name: String,
+    val currentState: VehicleState,
+    val todaySummary: DailySummary,
+    val carInfo: CarInfo,
+    val defaultEvent: CarEvent = CarEvent.DIARY,
+)
+
+fun DailySummary.toJson(): String = """
+    {
+      "date": "$date",
+      "distanceKm": $distanceKm,
+      "driveMin": $driveMin,
+      "trips": $trips,
+      "wiperMin": $wiperMin,
+      "hardBrakes": $hardBrakes,
+      "outsideTempC": $outsideTempC,
+      "heaterOn": $heaterOn,
+      "odometerKm": $odometerKm
+    }
+""".trimIndent()

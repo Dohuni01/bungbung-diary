@@ -1,0 +1,4 @@
+<resources>
+    <!-- 런처에 보이는 이름은 "붕붕일기"로 고정 (앱 안 제목은 닉네임으로 바뀜) -->
+    <string name="app_name">붕붕일기</string>
+</resources>
