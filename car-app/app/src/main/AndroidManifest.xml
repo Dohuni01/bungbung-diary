@@ -41,6 +41,9 @@
     <!-- Pleos STT / TTS SDK 권한 -->
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- Pleos NaviHelper(목적지 조회) / LLM 권한 — My Project에서 SDK 사용 신청 필요 -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.LLM_SERVICE" />
 
     <application
         android:name=".BungbungApplication"

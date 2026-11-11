@@ -48,6 +48,10 @@ fun Mood.stageColor(): Color = when (this) {
     Mood.WORRIED -> Color(0xFF4A3A16)
     Mood.CELEBRATE -> Color(0xFF352B5C)
     Mood.FOCUS -> Color(0xFF1E4636)
+    Mood.HUNGRY -> Color(0xFF45301C)   // 허기진 주황빛
+    Mood.SICK -> Color(0xFF4A2430)     // 아픈 붉은빛
+    Mood.CALM -> Color(0xFF27344C)     // 은은한 남색
+    Mood.LOVE -> Color(0xFF46283E)     // 설레는 분홍빛
 }
 
 private val BubbleColors = darkColorScheme(

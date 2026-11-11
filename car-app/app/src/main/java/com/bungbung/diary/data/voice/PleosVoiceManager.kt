@@ -103,6 +103,12 @@ class PleosVoiceManager(private val context: Context) {
         tts?.speak(text, true)
     }
 
+    /** 말하는 중이면 멈춘다 ("그만" 버튼, 목적지 해제) */
+    fun stopSpeaking() {
+        if (!ttsReady) return
+        try { tts?.stop() } catch (e: Exception) { Log.w(TAG, "TTS stop 실패: ${e.message}") }
+    }
+
     fun startListening(onResult: (String) -> Unit) {
         if (!sttReady) return
         pendingSttResult = onResult

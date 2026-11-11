@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.bungbung.diary.data.vehicle.fake.ScenarioHolder
 import com.bungbung.diary.data.vehicle.fake.Scenarios
 import com.bungbung.diary.domain.*
+import com.bungbung.diary.domain.destination.DestinationThought
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -88,6 +89,10 @@ class AppState {
     var diaryHour   by mutableStateOf(19)
     var diaryMinute by mutableStateOf(0)
 
+    // 목적지 한마디 — 네비(NaviHelper) 또는 디버그 패널에서 목적지가 정해지면 세팅
+    // (specs/2026-11-11-destination-talk-design.md)
+    var destinationThought by mutableStateOf<DestinationThought?>(null)
+
     // 비차량 상태
     var bookedShop  by mutableStateOf<String?>(null)
     var bookedSlot  by mutableStateOf<String?>(null)
@@ -107,8 +112,12 @@ class AppState {
         isDriving        -> Mood.FOCUS
         event.isWarning  -> Mood.WORRIED
         event.isCelebration -> Mood.CELEBRATE
+        destinationThought != null -> destinationThought!!.category.mood
         else             -> Mood.HAPPY
     }
+
+    /** 목적지 한마디 해제 (경로 취소 또는 "그만" 버튼) */
+    fun clearDestination() { destinationThought = null }
 
     /** 붕붕이 실시간 대화 엔진에 넘길 현재 차량 상태 (liveState 우선, 없으면 플랫 필드로 구성) */
     val vehicleState: VehicleState get() = liveState ?: VehicleState(
@@ -146,12 +155,13 @@ class AppState {
         fuelPercent  = s.energy.percent
         tireLow      = s.tires.anyLow()
         engineLight  = s.safetyWarnings.any { it.code == "ENGINE" }
-        fuelLow      = s.energy.percent <= 15
+        fuelLow      = s.energy.percent <= 20
         event        = scenario.defaultEvent
         voiceAnswer  = null
         bookedShop   = null
         bookedSlot   = null
         waypoint     = null
+        destinationThought = null
         showShopsAfterParking = false
     }
 
@@ -233,6 +243,7 @@ class AppState {
         bookedShop   = null
         bookedSlot   = null
         waypoint     = null
+        destinationThought = null
         showShopsAfterParking = false
     }
 }

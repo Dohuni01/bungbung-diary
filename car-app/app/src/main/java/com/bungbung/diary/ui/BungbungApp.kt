@@ -6,10 +6,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bungbung.diary.BuildConfig
+import com.bungbung.diary.BungbungApplication
 import com.bungbung.diary.data.local.CarProfileEntity
 import com.bungbung.diary.data.local.CarProfileRepository
+import com.bungbung.diary.data.llm.PleosLlmClient
+import com.bungbung.diary.data.navi.PleosNaviDataSource
 import com.bungbung.diary.data.vehicle.pleos.PleosVehicleDataSource
 import com.bungbung.diary.domain.Tone
+import com.bungbung.diary.domain.destination.DestinationThoughtService
 import com.bungbung.diary.ui.booking.BookingScreen
 import com.bungbung.diary.ui.main.MainScreen
 import com.bungbung.diary.ui.onboarding.OnboardingScreen
@@ -48,6 +53,22 @@ fun BungbungApp(initialNickname: String? = null) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
 
+    // 목적지 한마디: 분류(규칙) → 민감하면 고정 문장, 아니면 LLM+템플릿 fallback → 말풍선+표정+음성
+    val llmClient = remember {
+        PleosLlmClient(context.applicationContext, BuildConfig.PLEOS_CLIENT_ID, BuildConfig.PLEOS_CLIENT_SECRET)
+    }
+    val thoughtService = remember { DestinationThoughtService(llmClient) }
+    val voiceManager = (context.applicationContext as? BungbungApplication)?.voiceManager
+    val onDestinationSet: (String) -> Unit = { name ->
+        scope.launch {
+            val thought = withContext(Dispatchers.IO) {
+                thoughtService.thought(name, state.tone, state.nickname)
+            }
+            state.destinationThought = thought
+            voiceManager?.speak(thought.message)
+        }
+    }
+
     // Pleos Vehicle SDK → AppState 실시간 연결
     DisposableEffect(Unit) {
         val dataSource = PleosVehicleDataSource(context)
@@ -65,7 +86,7 @@ fun BungbungApp(initialNickname: String? = null) {
                     state.gear         = vs.gear
                     state.outsideTempC = vs.outsideTempC
                     state.fuelPercent  = vs.energy.percent
-                    state.fuelLow      = vs.energy.percent in 1..15
+                    state.fuelLow      = vs.energy.percent in 1..20
                     state.tires        = vs.tires.asList()
                     state.tireLow      = vs.tires.anyLow()
                     state.engineLight  = vs.safetyWarnings.any { it.code == "ENGINE" }
@@ -87,6 +108,22 @@ fun BungbungApp(initialNickname: String? = null) {
         onDispose {
             dataSource.release()
             dsScope.cancel()
+        }
+    }
+
+    // Pleos NaviHelper → 목적지 한마디 (에뮬레이터 내비에서 목적지를 정하면 자동 감지)
+    DisposableEffect(Unit) {
+        llmClient.start()
+        val naviSource = PleosNaviDataSource(context.applicationContext)
+        naviSource.onDestinationSet = onDestinationSet
+        naviSource.onDestinationCleared = {
+            voiceManager?.stopSpeaking()
+            state.clearDestination()
+        }
+        naviSource.start()
+        onDispose {
+            naviSource.release()
+            llmClient.release()
         }
     }
 
@@ -136,6 +173,7 @@ fun BungbungApp(initialNickname: String? = null) {
                 onOpenBooking  = { nav.navigate(Routes.BOOKING) },
                 onOpenStations = { nav.navigate(Routes.STATIONS) },
                 onOpenProbe    = { nav.navigate(Routes.PROBE) },
+                onSetDestination = onDestinationSet,
             )
         }
         composable(Routes.PROBE) {

@@ -35,12 +35,16 @@ enum class CarEvent(val title: String) {
 
 enum class Gear { P, R, N, D }
 
-/** 캐릭터 표정 4종. 그림이 나오기 전까지 이모지로 대신해요. */
+/** 캐릭터 표정 8종. CarCharacter가 기분마다 눈·입·소품을 다르게 그려요. */
 enum class Mood(val emoji: String, val label: String) {
     HAPPY("😊", "평소"),
-    WORRIED("😟", "걱정"),
+    WORRIED("😟", "걱정"),       // 운전자가 해결할 일 (문 열림, 벨트 등)
     CELEBRATE("🥳", "축하"),
     FOCUS("😐", "집중"),
+    HUNGRY("🥺", "배고픔"),      // 연료 부족, 맛집 가는 길
+    SICK("🤒", "아픔"),          // 엔진 경고, 타이어 등 차에 생긴 문제
+    CALM("😌", "차분"),          // 장례식장 가는 길, 자연
+    LOVE("🥰", "설렘"),          // 공항(여행) 가는 길
 }
 
 /** 차 안에서 만드는 하루 요약 (PROMPT.md 6절 DailySummary) */

@@ -62,7 +62,6 @@ import com.bungbung.diary.ui.components.CharacterStage
 import com.bungbung.diary.ui.components.SpeakerIcon
 import com.bungbung.diary.ui.components.SpeechBubble
 import com.bungbung.diary.ui.components.StatTile
-import com.bungbung.diary.ui.theme.BubbleInk
 import com.bungbung.diary.ui.theme.Ok
 import com.bungbung.diary.ui.theme.Warning
 import java.time.LocalDate
@@ -102,6 +101,11 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
     }
 
     val talk = CarTalkGenerator.talk(state.vehicleState, state.tone, state.nickname, state.safetyAlert)
+    // 표정 우선순위: 심각한 문제(엔진·문·벨트·연료·타이어·위험 알림) > 목적지 기분 > 평소 말의 기분.
+    // 창문 열림·깜빡이 같은 가벼운 멘트가 목적지 기분(공항=설렘)을 덮지 않게 한다.
+    val stageMood =
+        if (talk.overridesMood) talk.mood
+        else state.destinationThought?.category?.mood ?: talk.mood
 
     if (state.isDriving) {
         DrivingView(state, talk)
@@ -122,9 +126,9 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             CharacterStage(
-                mood = talk.mood,
+                mood = stageMood,
                 name = state.nickname,
-                caption = "기분 · ${talk.mood.label}",
+                caption = "기분 · ${stageMood.label}",
                 modifier = Modifier.fillMaxWidth(),
                 characterWidth = 180.dp,
             )
@@ -139,6 +143,7 @@ fun TodayScreen(state: AppState, onOpenBooking: () -> Unit, onOpenStations: () -
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Header(state)
+            DestinationCard(state)
             LiveTalkBubble(state, talk, onOpenBooking, onOpenStations)
             StatusStrip(state)
             DiaryCard(state)
@@ -236,6 +241,40 @@ private fun LiveTalkBubble(
     }
 }
 
+/**
+ * 목적지 한마디 — 네비(또는 시뮬레이터)로 목적지가 정해지면 붕붕이가
+ * 이동의 의미에 맞는 한마디를 건넨다 (specs/2026-11-11-destination-talk-design.md)
+ */
+@Composable
+private fun DestinationCard(state: AppState) {
+    val thought = state.destinationThought ?: return
+    val context = LocalContext.current
+    val voiceManager = (context.applicationContext as BungbungApplication).voiceManager
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(18.dp))
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "🧭 ${thought.category.label}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = {
+                voiceManager.stopSpeaking()
+                state.clearDestination()
+            }) { Text("그만") }
+        }
+        Text(thought.message, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+        BubbleButton(label = "들려줘", onClick = { voiceManager.speak(thought.message) }, leading = { SpeakerIcon() })
+    }
+}
+
 /** 지금 차 상태 한 줄 요약 (연료 / 타이어 / 벨트 / 문) */
 @Composable
 private fun StatusStrip(state: AppState) {
@@ -288,7 +327,7 @@ private fun DiaryCard(state: AppState) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("📔 오늘의 일기", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(diaryText, style = MaterialTheme.typography.bodyLarge, color = BubbleInk)
+            Text(diaryText, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             BubbleButton(label = "들려줘", onClick = { voiceManager.speak(diaryText) }, leading = { SpeakerIcon() })
         }
     } else {
@@ -312,15 +351,20 @@ private fun DiaryCard(state: AppState) {
 /** 주행 중(D단): 글을 숨기고 캐릭터와 붕붕이의 짧은 말만 */
 @Composable
 private fun DrivingView(state: AppState, talk: CarTalk) {
+    // 경고가 없을 때(IDLE)는 목적지 한마디가 주행 중 메시지를 대신한다.
+    // 표정은 심각한 문제가 아닌 한 목적지 기분을 유지한다.
+    val thought = state.destinationThought
+    val showThought = talk.kind == CarTalk.Kind.IDLE && thought != null
+    val drivingMood = if (thought != null && !talk.overridesMood) thought.category.mood else talk.mood
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            CarCharacter(mood = talk.mood, width = 240.dp)
+            CarCharacter(mood = drivingMood, width = 240.dp)
             Text("주행 중", style = MaterialTheme.typography.headlineMedium)
             Text(
-                talk.message,
+                if (showThought) thought!!.message else talk.message,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
                 color = if (talk.mood == com.bungbung.diary.domain.Mood.WORRIED) Warning else MaterialTheme.colorScheme.onSurface,

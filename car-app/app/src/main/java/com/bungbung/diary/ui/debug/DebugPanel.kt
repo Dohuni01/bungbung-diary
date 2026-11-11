@@ -28,8 +28,14 @@ import com.bungbung.diary.ui.AppState
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun DebugPanel(
+    state: AppState,
+    onOpenProbe: () -> Unit = {},
+    onSetDestination: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     var scenarioExpanded by remember { mutableStateOf(false) }
+    var destinationInput by remember { mutableStateOf("") }
     val currentScenario = Scenarios.all.find { it.defaultEvent == state.event } ?: Scenarios.DiaryDay
 
     Column(
@@ -98,6 +104,50 @@ fun DebugPanel(state: AppState, onOpenProbe: () -> Unit = {}, modifier: Modifier
                 onPick = { state.triggerSafety(it) },
             )
         }
+
+        // ── 목적지 한마디 재현 (네비 목적지 설정과 같은 경로를 탄다) ──────
+        SectionTitle("목적지 설정 (네비)")
+        state.destinationThought?.let { thought ->
+            Text(
+                "🧭 ${thought.category.label} (${if (thought.fromLlm) "LLM" else "템플릿"})",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            OutlinedButton(
+                onClick = { state.clearDestination() },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("■ 목적지 해제") }
+        }
+        SimButton("장례식장 (서울아산병원)")  { onSetDestination("서울아산병원 장례식장") }
+        SimButton("응급실 (세브란스)")        { onSetDestination("세브란스병원 응급진료센터") }
+        SimButton("병원 (서울대학교병원)")    { onSetDestination("서울대학교병원") }
+        SimButton("공항 (인천 T2)")           { onSetDestination("인천국제공항 제2여객터미널") }
+        SimButton("결혼식 (라비두스 웨딩홀)") { onSetDestination("라비두스 웨딩홀") }
+        SimButton("면허시험장 (서울남부)")    { onSetDestination("서울남부운전면허시험장") }
+        SimButton("집")                       { onSetDestination("우리집") }
+        SimButton("출근 (회사)")              { onSetDestination("회사") }
+        SimButton("맛집 (BHC치킨)")           { onSetDestination("BHC치킨 서울공항점") }
+        SimButton("놀이공원 (에버랜드)")      { onSetDestination("에버랜드") }
+        SimButton("영화관 (CGV)")             { onSetDestination("CGV 용산아이파크몰") }
+        SimButton("자연 (경포해변)")          { onSetDestination("경포해변") }
+        SimButton("일반 (강남역)")            { onSetDestination("강남역") }
+        OutlinedTextField(
+            value = destinationInput,
+            onValueChange = { destinationInput = it },
+            label = { Text("직접 입력") },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = MaterialTheme.typography.bodyMedium,
+            singleLine = true,
+        )
+        Button(
+            onClick = {
+                val name = destinationInput.trim()
+                if (name.isNotEmpty()) onSetDestination(name)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = destinationInput.isNotBlank(),
+        ) { Text("목적지 정하기") }
 
         // ── 3) 기타 이벤트 ────────────────────────────────────────────────
         SectionTitle("기타 이벤트")

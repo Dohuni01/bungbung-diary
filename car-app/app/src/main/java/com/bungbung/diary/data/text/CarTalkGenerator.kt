@@ -17,6 +17,17 @@ data class CarTalk(
 ) {
     /** 말의 종류 — UI에서 액션 버튼(정비소/주유소)을 붙일지 판단 */
     enum class Kind { SAFETY, ENGINE, DOOR, SEATBELT, WINDOW, LIGHT, FUEL, TIRE, IDLE }
+
+    /**
+     * 목적지 기분보다 우선해야 하는 심각한 말인지.
+     * 창문 열림·라이트·습관 알림(깜빡이 등) 같은 가벼운 상태는 말풍선만 차지하고
+     * 표정은 목적지 기분(공항=설렘 등)을 유지한다.
+     */
+    val overridesMood: Boolean get() = when (kind) {
+        Kind.ENGINE, Kind.DOOR, Kind.SEATBELT, Kind.FUEL, Kind.TIRE -> true
+        Kind.SAFETY -> alert?.urgency != SafetyUrgency.HABIT
+        Kind.WINDOW, Kind.LIGHT, Kind.IDLE -> false
+    }
 }
 
 /**
@@ -36,9 +47,9 @@ object CarTalkGenerator {
             }
             return CarTalk(alert.message, mood, CarTalk.Kind.SAFETY, alert)
         }
-        // 1. 엔진 경고 — 가장 심각
+        // 1. 엔진 경고 — 가장 심각. 차가 '아픈' 상황
         if (state.safetyWarnings.any { it.code == "ENGINE" }) {
-            return CarTalk(engine(tone), Mood.WORRIED, CarTalk.Kind.ENGINE)
+            return CarTalk(engine(tone), Mood.SICK, CarTalk.Kind.ENGINE)
         }
         // 2. 문 열림
         if (state.openDoors.isNotEmpty()) {
@@ -56,13 +67,13 @@ object CarTalkGenerator {
         if (state.lightOn && state.gear == Gear.P) {
             return CarTalk(light(tone), Mood.WORRIED, CarTalk.Kind.LIGHT)
         }
-        // 6. 연료 부족
-        if (state.energy.percent in 1..15) {
-            return CarTalk(fuel(tone, state.energy.percent), Mood.WORRIED, CarTalk.Kind.FUEL)
+        // 6. 연료 부족 — 20% 이하면 '배고픈' 얼굴
+        if (state.energy.percent in 1..20) {
+            return CarTalk(fuel(tone, state.energy.percent), Mood.HUNGRY, CarTalk.Kind.FUEL)
         }
-        // 7. 타이어 공기압
+        // 7. 타이어 공기압 — 차가 '아픈' 상황
         state.tires.asList().firstOrNull { it.isLow }?.let { tire ->
-            return CarTalk(tire(tone, tire.position, tire.psi), Mood.WORRIED, CarTalk.Kind.TIRE)
+            return CarTalk(tire(tone, tire.position, tire.psi), Mood.SICK, CarTalk.Kind.TIRE)
         }
         // 8. 평상시 — 다 괜찮을 때
         return CarTalk(idle(tone, nickname, state), Mood.HAPPY, CarTalk.Kind.IDLE)

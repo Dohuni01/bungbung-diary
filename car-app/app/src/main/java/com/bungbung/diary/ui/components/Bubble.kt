@@ -95,6 +95,23 @@ fun CarCharacter(
         }
 
         val stroke = Stroke(width = 4.5f * s, cap = StrokeCap.Round)
+
+        // 하트 눈 (LOVE 전용)
+        fun heartEye(cx: Float) {
+            val pink = Color(0xFFFF6B8A)
+            drawCircle(pink, 4.6f * s, p(cx - 4f, 84f))
+            drawCircle(pink, 4.6f * s, p(cx + 4f, 84f))
+            drawPath(Path().apply {
+                moveTo((cx - 8.3f) * s, 85.5f * s); lineTo((cx + 8.3f) * s, 85.5f * s)
+                lineTo(cx * s, 95.5f * s); close()
+            }, pink)
+        }
+        // 질끈 감은 눈 ><  (SICK 전용)
+        fun squeezedEye(cx: Float) {
+            drawLine(ink, p(cx - 6f, 81f), p(cx + 6f, 92f), strokeWidth = 4f * s, cap = StrokeCap.Round)
+            drawLine(ink, p(cx + 6f, 81f), p(cx - 6f, 92f), strokeWidth = 4f * s, cap = StrokeCap.Round)
+        }
+
         // 눈
         when (mood) {
             Mood.FOCUS -> {
@@ -106,6 +123,26 @@ fun CarCharacter(
                 drawPath(Path().apply { moveTo(76 * s, 90 * s); quadraticTo(84 * s, 78 * s, 92 * s, 90 * s) }, ink, style = stroke)
                 drawPath(Path().apply { moveTo(128 * s, 90 * s); quadraticTo(136 * s, 78 * s, 144 * s, 90 * s) }, ink, style = stroke)
             }
+            Mood.CALM -> {
+                // 편안하게 감은 눈 ∪ ∪
+                drawPath(Path().apply { moveTo(76 * s, 85 * s); quadraticTo(84 * s, 93 * s, 92 * s, 85 * s) }, ink, style = stroke)
+                drawPath(Path().apply { moveTo(128 * s, 85 * s); quadraticTo(136 * s, 93 * s, 144 * s, 85 * s) }, ink, style = stroke)
+            }
+            Mood.LOVE -> {
+                heartEye(84f)
+                heartEye(136f)
+            }
+            Mood.SICK -> {
+                squeezedEye(84f)
+                squeezedEye(136f)
+            }
+            Mood.HUNGRY -> {
+                // 시무룩한 눈썹 + 반짝임 없는 눈
+                drawLine(ink, p(76f, 79f), p(92f, 74f), strokeWidth = 3.5f * s, cap = StrokeCap.Round)
+                drawLine(ink, p(144f, 79f), p(128f, 74f), strokeWidth = 3.5f * s, cap = StrokeCap.Round)
+                drawCircle(ink, 6.8f * s, p(84f, 88f))
+                drawCircle(ink, 6.8f * s, p(136f, 88f))
+            }
             else -> {
                 drawCircle(ink, 7.5f * s, p(84f, 87f))
                 drawCircle(ink, 7.5f * s, p(136f, 87f))
@@ -114,20 +151,47 @@ fun CarCharacter(
             }
         }
         // 볼
-        if (mood == Mood.HAPPY || mood == Mood.CELEBRATE) {
+        if (mood == Mood.HAPPY || mood == Mood.CELEBRATE || mood == Mood.LOVE) {
             drawCircle(Color(0xFFFF9BB0).copy(alpha = 0.75f), 7 * s, p(66f, 101f))
             drawCircle(Color(0xFFFF9BB0).copy(alpha = 0.75f), 7 * s, p(154f, 101f))
         }
         // 입
-        val mouth = Path().apply {
-            when (mood) {
-                Mood.HAPPY -> { moveTo(98 * s, 101 * s); quadraticTo(110 * s, 112 * s, 122 * s, 101 * s) }
-                Mood.CELEBRATE -> { moveTo(94 * s, 99 * s); quadraticTo(110 * s, 118 * s, 126 * s, 99 * s) }
-                Mood.WORRIED -> { moveTo(99 * s, 108 * s); quadraticTo(110 * s, 99 * s, 121 * s, 108 * s) }
-                Mood.FOCUS -> { moveTo(101 * s, 104 * s); lineTo(119 * s, 104 * s) }
+        when (mood) {
+            Mood.HUNGRY -> {
+                // 허기진 입 — 작게 벌어진 동그란 입
+                drawCircle(ink, 5.5f * s, p(110f, 106f))
+            }
+            Mood.SICK -> {
+                // 앓는 입 — 구불구불
+                drawPath(Path().apply {
+                    moveTo(97 * s, 105 * s)
+                    quadraticTo(103.5f * s, 100 * s, 110 * s, 105 * s)
+                    quadraticTo(116.5f * s, 110 * s, 123 * s, 105 * s)
+                }, ink, style = stroke)
+            }
+            else -> {
+                val mouth = Path().apply {
+                    when (mood) {
+                        Mood.HAPPY -> { moveTo(98 * s, 101 * s); quadraticTo(110 * s, 112 * s, 122 * s, 101 * s) }
+                        Mood.CELEBRATE, Mood.LOVE -> { moveTo(94 * s, 99 * s); quadraticTo(110 * s, 118 * s, 126 * s, 99 * s) }
+                        Mood.WORRIED -> { moveTo(99 * s, 108 * s); quadraticTo(110 * s, 99 * s, 121 * s, 108 * s) }
+                        Mood.CALM -> { moveTo(102 * s, 103 * s); quadraticTo(110 * s, 109 * s, 118 * s, 103 * s) }
+                        else -> { moveTo(101 * s, 104 * s); lineTo(119 * s, 104 * s) } // FOCUS
+                    }
+                }
+                drawPath(mouth, ink, style = stroke)
             }
         }
-        drawPath(mouth, ink, style = stroke)
+        // 소품: 아플 때 식은땀 한 방울
+        if (mood == Mood.SICK) {
+            val drop = Color(0xFF9ED6FF)
+            drawPath(Path().apply {
+                moveTo(170 * s, 52 * s)
+                quadraticTo(176 * s, 62 * s, 170 * s, 67 * s)
+                quadraticTo(164 * s, 62 * s, 170 * s, 52 * s)
+                close()
+            }, drop)
+        }
     }
 }
 

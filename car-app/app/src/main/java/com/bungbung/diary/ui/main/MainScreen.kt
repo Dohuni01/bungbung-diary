@@ -62,6 +62,7 @@ fun MainScreen(
     onOpenBooking: () -> Unit,
     onOpenStations: () -> Unit,
     onOpenProbe: () -> Unit = {},
+    onSetDestination: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -98,6 +99,7 @@ fun MainScreen(
             DebugPanel(
                 state = state,
                 onOpenProbe = onOpenProbe,
+                onSetDestination = onSetDestination,
                 modifier = Modifier
                     .width(300.dp)
                     .fillMaxHeight(),
